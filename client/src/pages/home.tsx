@@ -69,9 +69,9 @@ export default function Home() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="relative lg:ml-auto"
+              className="relative lg:ml-auto flex justify-center lg:justify-end"
             >
-              <div className="relative w-full max-w-md mx-auto aspect-square rounded-[2rem] overflow-hidden border border-border/50 shadow-2xl bg-card">
+              <div className="relative w-full max-w-sm aspect-square rounded-[2rem] overflow-hidden border border-border/50 shadow-2xl bg-card">
                 <div className="absolute inset-0 bg-gradient-to-tr from-background/80 to-transparent z-10" />
                 <img src={LogoImg} alt="RK Barbershop Logo" className="w-full h-full object-contain p-8 relative z-0" />
                 
@@ -94,14 +94,76 @@ export default function Home() {
         </div>
       </section>
 
+      {/* About Section */}
+      <section className="py-20 md:py-28 bg-card border-b border-border/30">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="max-w-3xl mx-auto text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="space-y-6"
+            >
+              <h2 className="text-3xl md:text-4xl font-bold font-heading">About RK Barbershop</h2>
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                Since 2018, RK Barbershop has been delivering premium grooming services in Lemery. We pride ourselves on professional excellence, affordable pricing, and a welcoming atmosphere for every customer.
+              </p>
+              
+              <div className="grid md:grid-cols-3 gap-8 pt-8">
+                <motion.div
+                  whileHover={{ y: -4 }}
+                  className="p-6 bg-muted/30 rounded-2xl border border-border/50"
+                >
+                  <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                    <CheckCircle2 className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="font-bold text-lg mb-2">Expert Barbers</h3>
+                  <p className="text-sm text-muted-foreground">6 highly trained and experienced barbers dedicated to your satisfaction.</p>
+                </motion.div>
+                
+                <motion.div
+                  whileHover={{ y: -4 }}
+                  className="p-6 bg-muted/30 rounded-2xl border border-border/50"
+                  transition={{ delay: 0.1 }}
+                >
+                  <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                    <Clock className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="font-bold text-lg mb-2">Quick Service</h3>
+                  <p className="text-sm text-muted-foreground">Efficient bookings and live queue tracking so you know exactly when to arrive.</p>
+                </motion.div>
+                
+                <motion.div
+                  whileHover={{ y: -4 }}
+                  className="p-6 bg-muted/30 rounded-2xl border border-border/50"
+                  transition={{ delay: 0.2 }}
+                >
+                  <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                    <MapPin className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="font-bold text-lg mb-2">Affordable Pricing</h3>
+                  <p className="text-sm text-muted-foreground">Premium quality at competitive prices. Walk-in rates from ₱120, reservations from ₱200.</p>
+                </motion.div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
       {/* Live Queue Section */}
-      <section id="queue" className="py-20 bg-muted/20 border-y border-border/30">
+      <section id="queue" className="py-20 md:py-28 bg-muted/20 border-b border-border/30">
         <div className="container mx-auto px-4 md:px-6">
           <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 font-heading">Live Queue Board</h2>
-            <p className="text-muted-foreground">
-              Walking in? Check our real-time queue status before you arrive. We'll add you to the board when you get here.
-            </p>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 font-heading">Live Queue Board</h2>
+              <p className="text-muted-foreground">
+                Walking in? Check our real-time queue status before you arrive. We'll add you to the board when you get here.
+              </p>
+            </motion.div>
           </div>
           
           <QueueBoard queue={mockQueue} />
@@ -109,7 +171,7 @@ export default function Home() {
       </section>
 
       {/* Barbers & Booking Section */}
-      <section id="barbers" className="py-24">
+      <section id="barbers" className="py-24 md:py-32">
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
             <div className="max-w-2xl">
@@ -169,7 +231,7 @@ export default function Home() {
       </section>
 
       {/* Contact & Location */}
-      <section id="contact" className="py-24 bg-card border-t border-border/50 relative overflow-hidden">
+      <section id="contact" className="py-24 md:py-32 bg-card border-t border-border/50 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[30vw] h-[30vw] bg-secondary/5 rounded-full blur-[100px] pointer-events-none" />
         <div className="container mx-auto px-4 md:px-6 relative z-10">
           <div className="grid lg:grid-cols-2 gap-16">
