@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import os from "os";
 
 const app = express();
 const httpServer = createServer(app);
@@ -98,6 +99,15 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      log(`  ➜  Local:    http://localhost:${port}/`);
+      const nets = os.networkInterfaces();
+      for (const iface of Object.values(nets)) {
+        for (const addr of iface || []) {
+          if (addr.family === "IPv4" && !addr.internal) {
+            log(`  ➜  Network:  http://${addr.address}:${port}/`);
+          }
+        }
+      }
     },
   );
 })();

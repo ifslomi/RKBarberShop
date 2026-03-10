@@ -1,41 +1,53 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Link } from "wouter";
 import { Navbar } from "@/components/layout/Navbar";
-import { QueueBoard } from "@/components/queue/QueueBoard";
+import { QueueModal } from "@/components/queue/QueueModal";
 import { BookingModal } from "@/components/booking/BookingModal";
-import { barbers, mockQueue, Barber } from "@/lib/data";
+import { useBarbers, useQueue, useSettings, useServices } from "@/hooks/useFirestore";
 import { Button } from "@/components/ui/button";
-import { MapPin, Clock, Facebook, Mail, CheckCircle2, Navigation, Scissors } from "lucide-react";
-import LogoImg from "@assets/image_1773147860918.png";
+import {
+  MapPin, Clock, CheckCircle2, Loader2, Scissors,
+  ArrowRight, Users, Star,
+} from "lucide-react";
+import LogoImg from "@assets/rkbarber-logo-transparent.png";
 
 export default function Home() {
-  const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const { barbers, loading: barbersLoading } = useBarbers();
+  const { queue, loading: queueLoading } = useQueue();
+  const { settings } = useSettings();
+  const { services } = useServices();
 
-  const handleBook = (barber: Barber) => {
-    setSelectedBarber(barber);
-    setBookingOpen(true);
-  };
+  const activeBarbers = barbers.filter((b) => b.active);
+  const activeServices = services.filter((s) => s.active);
+  const shopName = settings?.shopName || "RK Barbershop";
+  const aboutText =
+    settings?.aboutText ||
+    "Since 2018, RK Barbershop has been delivering premium grooming services in Lemery. We pride ourselves on professional excellence, affordable pricing, and a welcoming atmosphere for every customer.";
 
   return (
     <div className="min-h-screen bg-background selection:bg-primary selection:text-primary-foreground">
-      <Navbar />
-      
-      <BookingModal 
-        open={bookingOpen} 
-        onOpenChange={setBookingOpen} 
-        barber={selectedBarber} 
+      <Navbar onBookClick={() => setBookingOpen(true)} onQueueClick={() => setQueueOpen(true)} />
+
+      <BookingModal open={bookingOpen} onOpenChange={setBookingOpen} />
+      <QueueModal
+        open={queueOpen}
+        onOpenChange={setQueueOpen}
+        queue={queue}
+        barbers={activeBarbers}
+        loading={queueLoading || barbersLoading}
       />
 
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden">
-        {/* Abstract Background Elements */}
+      {/* ── Hero ───────────────────────────────────────────── */}
+      <section className="relative min-h-screen flex flex-col justify-center pt-24 pb-16 overflow-hidden">
         <div className="absolute top-0 right-0 w-[50vw] h-[50vw] bg-primary/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/3 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-secondary/5 rounded-full blur-[80px] translate-y-1/3 -translate-x-1/3 pointer-events-none" />
-        
+
         <div className="container mx-auto px-4 md:px-6 relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
@@ -43,49 +55,59 @@ export default function Home() {
             >
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/50 border border-border mb-6">
                 <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Est. 2018</span>
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Est. 2018
+                </span>
               </div>
               <h1 className="text-5xl md:text-7xl font-black mb-6 leading-[1.1] font-heading">
                 CLEAN CUTS.<br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-yellow-600">
-                  PROFESSIONAL
-                </span><br />
+                <span className="text-primary">PROFESSIONAL</span><br />
                 BARBERS.
               </h1>
               <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-lg leading-relaxed">
-                Experience premium grooming at RK Barbershop. Book a reservation or join our live walk-in queue today.
+                Experience premium grooming at {shopName}. Book a reservation or
+                join our live walk-in queue today.
               </p>
               <div className="flex flex-wrap gap-4">
-                <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8 h-14 rounded-full font-semibold" asChild>
-                  <a href="#barbers">Book Appointment</a>
+                <Button
+                  size="lg"
+                  type="button"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8 h-14 rounded-full font-semibold"
+                  onClick={() => setBookingOpen(true)}
+                >
+                  Book Appointment
                 </Button>
-                <Button size="lg" variant="outline" className="text-lg px-8 h-14 rounded-full border-border/50 bg-background/50 backdrop-blur-sm" asChild>
-                  <a href="#queue">View Live Queue</a>
+                <Button
+                  size="lg"
+                  type="button"
+                  variant="outline"
+                  className="text-lg px-8 h-14 rounded-full border-border/50 bg-background/50 backdrop-blur-sm hover:bg-accent/50 transition-colors"
+                  onClick={() => setQueueOpen(true)}
+                >
+                  View Live Queue
                 </Button>
               </div>
             </motion.div>
-            
-            <motion.div 
+
+            <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="relative lg:ml-auto flex justify-center lg:justify-end"
+              className="flex flex-col items-center gap-6 lg:ml-auto"
             >
-              <div className="relative w-full max-w-sm aspect-square rounded-[2rem] overflow-hidden border border-border/50 shadow-2xl bg-card">
-                <div className="absolute inset-0 bg-gradient-to-tr from-background/80 to-transparent z-10" />
-                <img src={LogoImg} alt="RK Barbershop Logo" className="w-full h-full object-contain p-8 relative z-0" />
-                
-                {/* Barber pole detail */}
-                <div className="absolute bottom-0 left-0 w-full h-2 barber-pole-stripe z-20" />
-              </div>
-              
-              {/* Floating Badge */}
-              <div className="absolute -bottom-6 -left-6 bg-card border border-border/50 shadow-xl rounded-2xl p-4 flex items-center gap-4 animate-in slide-in-from-bottom-8 duration-700 delay-300">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                  <CheckCircle2 className="text-primary w-6 h-6" />
+              <img
+                src={LogoImg}
+                alt={`${shopName} Logo`}
+                className="w-64 h-64 md:w-80 md:h-80 lg:w-96 lg:h-96 object-contain drop-shadow-[0_0_60px_rgba(242,183,5,0.25)]"
+              />
+              <div className="bg-card border border-border/50 shadow-xl rounded-2xl px-5 py-3 flex items-center gap-4 animate-in slide-in-from-bottom-8 duration-700 delay-300">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                  <CheckCircle2 className="text-primary w-5 h-5" />
                 </div>
                 <div>
-                  <p className="font-bold">6 Expert Barbers</p>
+                  <p className="font-bold">
+                    {activeBarbers.length} Expert Barber{activeBarbers.length !== 1 ? "s" : ""}
+                  </p>
                   <p className="text-sm text-muted-foreground">Ready for you</p>
                 </div>
               </div>
@@ -94,236 +116,217 @@ export default function Home() {
         </div>
       </section>
 
-      {/* About Section */}
-      <section className="py-20 md:py-28 bg-card border-b border-border/30">
+      {/* ── About ──────────────────────────────────────────── */}
+      <section id="about" className="py-20 md:py-28 bg-card border-b border-border/30">
         <div className="container mx-auto px-4 md:px-6">
           <div className="max-w-3xl mx-auto text-center">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
               transition={{ duration: 0.6 }}
               className="space-y-6"
             >
-              <h2 className="text-3xl md:text-4xl font-bold font-heading">About RK Barbershop</h2>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                Since 2018, RK Barbershop has been delivering premium grooming services in Lemery. We pride ourselves on professional excellence, affordable pricing, and a welcoming atmosphere for every customer.
-              </p>
-              
+              <h2 className="text-3xl md:text-4xl font-bold font-heading">About {shopName}</h2>
+              <p className="text-lg text-muted-foreground leading-relaxed">{aboutText}</p>
               <div className="grid md:grid-cols-3 gap-8 pt-8">
-                <motion.div
-                  whileHover={{ y: -4 }}
-                  className="p-6 bg-muted/30 rounded-2xl border border-border/50"
-                >
-                  <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
-                    <CheckCircle2 className="w-6 h-6 text-primary" />
-                  </div>
-                  <h3 className="font-bold text-lg mb-2">Expert Barbers</h3>
-                  <p className="text-sm text-muted-foreground">6 highly trained and experienced barbers dedicated to your satisfaction.</p>
-                </motion.div>
-                
-                <motion.div
-                  whileHover={{ y: -4 }}
-                  className="p-6 bg-muted/30 rounded-2xl border border-border/50"
-                  transition={{ delay: 0.1 }}
-                >
-                  <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
-                    <Clock className="w-6 h-6 text-primary" />
-                  </div>
-                  <h3 className="font-bold text-lg mb-2">Quick Service</h3>
-                  <p className="text-sm text-muted-foreground">Efficient bookings and live queue tracking so you know exactly when to arrive.</p>
-                </motion.div>
-                
-                <motion.div
-                  whileHover={{ y: -4 }}
-                  className="p-6 bg-muted/30 rounded-2xl border border-border/50"
-                  transition={{ delay: 0.2 }}
-                >
-                  <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
-                    <MapPin className="w-6 h-6 text-primary" />
-                  </div>
-                  <h3 className="font-bold text-lg mb-2">Affordable Pricing</h3>
-                  <p className="text-sm text-muted-foreground">Premium quality at competitive prices. Walk-in rates from ₱120, reservations from ₱200.</p>
-                </motion.div>
+                {[
+                  { icon: CheckCircle2, title: "Expert Barbers", desc: `${activeBarbers.length} highly trained professionals dedicated to your grooming.` },
+                  { icon: Clock, title: "Quick Service", desc: "Efficient bookings and real-time queue tracking so you always know when to arrive." },
+                  { icon: Star, title: "Affordable Rates", desc: "Premium quality at competitive prices. Walk-in from ₱80, reservations from ₱120." },
+                ].map(({ icon: Icon, title, desc }, i) => (
+                  <motion.div
+                    key={title}
+                    whileHover={{ y: -4 }}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, delay: i * 0.1 }}
+                    className="p-6 bg-muted/30 rounded-2xl border border-border/50"
+                  >
+                    <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                      <Icon className="w-6 h-6 text-primary" />
+                    </div>
+                    <h3 className="font-bold text-lg mb-2">{title}</h3>
+                    <p className="text-sm text-muted-foreground">{desc}</p>
+                  </motion.div>
+                ))}
               </div>
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Live Queue Section */}
-      <section id="queue" className="py-20 md:py-28 bg-muted/20 border-b border-border/30">
+      {/* ── Services ───────────────────────────────────────── */}
+      <section id="services" className="py-20 md:py-28 border-b border-border/30">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              <h2 className="text-3xl md:text-4xl font-bold mb-4 font-heading">Live Queue Board</h2>
-              <p className="text-muted-foreground">
-                Walking in? Check our real-time queue status before you arrive. We'll add you to the board when you get here.
-              </p>
-            </motion.div>
-          </div>
-          
-          <QueueBoard queue={mockQueue} />
-        </div>
-      </section>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="text-center max-w-2xl mx-auto mb-12"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 font-heading">Our Services</h2>
+            <p className="text-muted-foreground">
+              From classic haircuts to full grooming packages — pick what suits you best when booking.
+            </p>
+          </motion.div>
 
-      {/* Barbers & Booking Section */}
-      <section id="barbers" className="py-24 md:py-32">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
-            <div className="max-w-2xl">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4 font-heading">Our Master Barbers</h2>
-              <p className="text-muted-foreground text-lg">
-                Select a barber to see their pricing and book your slot.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {barbers.map((barber) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {activeServices.map((service, i) => (
               <motion.div
-                key={barber.id}
-                whileHover={{ y: -5 }}
-                className="group bg-card rounded-2xl overflow-hidden border border-border/50 hover:border-primary/50 transition-all shadow-sm hover:shadow-xl"
+                key={service.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: i * 0.07 }}
+                whileHover={{ y: -3, boxShadow: "0 8px 30px rgba(0,0,0,0.2)" }}
+                className="bg-card border border-border/50 hover:border-primary/40 rounded-2xl p-6 transition-all cursor-default"
               >
-                <div className="aspect-[4/3] overflow-hidden relative">
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent z-10" />
-                  <img 
-                    src={barber.image} 
-                    alt={barber.name} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute bottom-4 left-4 z-20">
-                    <h3 className="text-2xl font-bold text-white mb-1 font-heading">{barber.name}</h3>
-                    <div className="flex items-center gap-2 text-sm text-white/80">
-                      <Clock className="w-4 h-4" />
-                      <span>Next available: {barber.nextAvailable}</span>
-                    </div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <Scissors className="w-5 h-5 text-primary" />
                   </div>
+                  <span className="text-xl font-bold text-primary">₱{service.price}</span>
                 </div>
-                
-                <div className="p-6">
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-muted/50 p-3 rounded-xl border border-border/30">
-                      <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider font-semibold">Reservation</p>
-                      <p className="text-xl font-bold">₱{barber.reservePrice}</p>
-                    </div>
-                    <div className="bg-muted/50 p-3 rounded-xl border border-border/30">
-                      <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider font-semibold">Walk-in</p>
-                      <p className="text-xl font-bold">₱{barber.walkinPrice}</p>
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    className="w-full bg-foreground text-background hover:bg-primary hover:text-primary-foreground font-semibold h-12 rounded-xl transition-all"
-                    onClick={() => handleBook(barber)}
-                  >
-                    Book Now
-                  </Button>
+                <h3 className="font-bold text-base mb-1">{service.name}</h3>
+                {service.description && (
+                  <p className="text-sm text-muted-foreground mb-3">{service.description}</p>
+                )}
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{service.duration} mins</span>
                 </div>
               </motion.div>
             ))}
           </div>
+
+
         </div>
       </section>
 
-      {/* Contact & Location */}
-      <section id="contact" className="py-24 md:py-32 bg-card border-t border-border/50 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[30vw] h-[30vw] bg-secondary/5 rounded-full blur-[100px] pointer-events-none" />
-        <div className="container mx-auto px-4 md:px-6 relative z-10">
-          <div className="grid lg:grid-cols-2 gap-16">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-6 font-heading">Visit Our Shop</h2>
-              <p className="text-muted-foreground mb-10 text-lg">
-                Located in the heart of Lemery. Drop by for a fresh cut or reach out to us on our socials.
+
+
+      {/* ── Meet Our Team CTA ──────────────────────────────── */}
+      <section className="py-20 md:py-28 border-b border-border/30">
+        <div className="container mx-auto px-4 md:px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="bg-card border border-border/50 rounded-3xl p-10 md:p-16 flex flex-col md:flex-row items-center gap-8 text-center md:text-left"
+          >
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/20 shrink-0 mx-auto md:mx-0">
+              <Users className="w-10 h-10 text-primary" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-2xl md:text-3xl font-bold font-heading mb-3">
+                Meet Our <span className="text-primary">Master Barbers</span>
+              </h2>
+              <p className="text-muted-foreground max-w-xl">
+                Get to know our team of skilled professionals. Check availability, specialties,
+                and pricing — then book directly with your preferred barber.
               </p>
-              
-              <div className="space-y-6">
-                <div className="flex gap-4 items-start">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <MapPin className="w-6 h-6 text-primary" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-lg">Address</h4>
-                    <p className="text-muted-foreground mt-1">
-                      Sanggalang Street, Maguihan<br />
-                      Lemery, Batangas, Philippines
-                    </p>
-                    <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-2 font-medium">
-                      <Navigation className="w-4 h-4" /> Get Directions
-                    </a>
-                  </div>
-                </div>
-
-                <div className="flex gap-4 items-start">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <Clock className="w-6 h-6 text-primary" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-lg">Hours</h4>
-                    <p className="text-muted-foreground mt-1">
-                      Monday - Sunday<br />
-                      9:00 AM - 8:00 PM
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4 items-start">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <Mail className="w-6 h-6 text-primary" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-lg">Contact</h4>
-                    <a href="mailto:roldandelacerna534@gmail.com" className="text-muted-foreground hover:text-primary transition-colors block mt-1">
-                      roldandelacerna534@gmail.com
-                    </a>
-                    <div className="flex gap-4 mt-3">
-                      <a href="https://www.facebook.com/profile.php?id=100083288351696" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
-                        <Facebook className="w-5 h-5" />
-                      </a>
-                      <a href="https://www.tiktok.com/@rkbarber18" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary transition-colors font-bold text-lg leading-none">
-                        TikTok
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
-            
-            <div className="h-[400px] lg:h-auto min-h-[400px] rounded-3xl overflow-hidden border border-border/50 bg-muted/30 relative">
-              {/* Map Mockup */}
-              <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80')] bg-cover bg-center opacity-40 grayscale" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="bg-background/80 backdrop-blur-sm p-4 rounded-2xl border border-border/50 shadow-xl flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center animate-bounce">
-                    <MapPin className="text-primary-foreground w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="font-bold">RK Barbershop</p>
-                    <p className="text-xs text-muted-foreground">Lemery, Batangas</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+            <Link href="/barbers">
+              <Button
+                size="lg"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-8 h-13 shrink-0 font-semibold whitespace-nowrap"
+              >
+                View Our Team <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </motion.div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-8 border-t border-border/30 bg-background text-center">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Scissors className="w-5 h-5 text-primary" />
-            <span className="font-heading font-bold text-lg">RK BARBERSHOP</span>
+      {/* ── Visit Our Shop CTA ─────────────────────────────── */}
+      <section className="py-20 md:py-28 bg-card border-b border-border/30">
+        <div className="container mx-auto px-4 md:px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="flex flex-col md:flex-row items-center gap-8 text-center md:text-left"
+          >
+            <div className="flex-1 space-y-4">
+              <h2 className="text-3xl md:text-4xl font-bold font-heading">
+                Visit Our <span className="text-primary">Shop</span>
+              </h2>
+              <p className="text-muted-foreground max-w-lg">
+                Located in {settings?.city || "Lemery, Batangas"}. Open{" "}
+                {settings?.operatingDays || "Monday – Sunday"},{" "}
+                {settings?.openTime || "9:00 AM"} – {settings?.closeTime || "8:00 PM"}.
+              </p>
+              <div className="flex flex-wrap items-center gap-4 justify-center md:justify-start pt-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  {settings?.address || "Sanggalang Street, Maguihan"}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Clock className="w-4 h-4 text-primary" />
+                  Open daily
+                </div>
+              </div>
+              <Link href="/location">
+                <Button
+                  className="bg-foreground text-background hover:bg-primary hover:text-primary-foreground rounded-full px-8 h-12 font-semibold mt-2"
+                >
+                  Get Directions <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
+            <div className="w-full md:w-96 h-56 rounded-2xl overflow-hidden border border-border/50 relative shrink-0">
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15495.646271256024!2d120.90119!3d13.87014!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd1444b1a0e8b7%3A0x3c4e13a0a94d2337!2sLemery%2C%20Batangas!5e0!3m2!1sen!2sph!4v1234567890"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="RK Barbershop Location"
+                className="absolute inset-0"
+              />
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── Footer ─────────────────────────────────────────── */}
+      <footer className="py-8 pb-24 md:pb-8 border-t border-border/30 bg-background">
+        <div className="container mx-auto px-4 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <img src={LogoImg} alt={shopName} className="w-8 h-8 object-contain" />
+            <span className="font-heading font-bold text-lg">{shopName.toUpperCase()}</span>
+          </div>
+          <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground mb-4">
+            <a href="#about" className="hover:text-foreground transition-colors">About</a>
+            <a href="#services" className="hover:text-foreground transition-colors">Services</a>
+            <button type="button" onClick={() => setQueueOpen(true)} className="hover:text-foreground transition-colors">Queue</button>
+            <Link href="/barbers" className="hover:text-foreground transition-colors">Team</Link>
+            <Link href="/location" className="hover:text-foreground transition-colors">Location</Link>
           </div>
           <p className="text-muted-foreground text-sm">
-            © {new Date().getFullYear()} RK Barbershop. All rights reserved.
+            &copy; {new Date().getFullYear()} {shopName}. All rights reserved.
           </p>
         </div>
       </footer>
+
+      {/* Sticky Mobile CTA */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background/80 backdrop-blur-lg border-t border-border/50 p-3">
+        <Button
+          type="button"
+          size="lg"
+          className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold h-12 rounded-xl"
+          onClick={() => setBookingOpen(true)}
+        >
+          Book an Appointment
+        </Button>
+      </div>
     </div>
   );
 }

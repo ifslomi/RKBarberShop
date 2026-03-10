@@ -1,12 +1,13 @@
 import { motion } from "framer-motion";
-import { QueueItem, barbers } from "@/lib/data";
+import type { QueueItem, Barber } from "@/lib/types";
 import { User } from "lucide-react";
 
 interface QueueBoardProps {
   queue: QueueItem[];
+  barbers: Barber[];
 }
 
-export function QueueBoard({ queue }: QueueBoardProps) {
+export function QueueBoard({ queue, barbers }: QueueBoardProps) {
   // Group queue by barber
   const queueByBarber = barbers.reduce((acc, barber) => {
     acc[barber.id] = queue.filter(q => q.barberId === barber.id).sort((a, b) => a.position - b.position);
@@ -15,7 +16,7 @@ export function QueueBoard({ queue }: QueueBoardProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {barbers.filter(b => b.active).map((barber, idx) => (
+      {barbers.map((barber, idx) => (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -25,8 +26,12 @@ export function QueueBoard({ queue }: QueueBoardProps) {
         >
           <div className="bg-muted/50 p-4 border-b border-border/50 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary/20">
-                <img src={barber.image} alt={barber.name} className="w-full h-full object-cover" />
+              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary/20 bg-primary/10 flex items-center justify-center">
+                {barber.image ? (
+                  <img src={barber.image} alt={barber.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-sm font-bold text-primary">{barber.name.charAt(0)}</span>
+                )}
               </div>
               <h3 className="font-bold text-lg">Barber {barber.name}</h3>
             </div>
