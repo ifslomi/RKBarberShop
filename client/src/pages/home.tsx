@@ -5,7 +5,7 @@ import { QueueBoard } from "@/components/queue/QueueBoard";
 import { BookingModal } from "@/components/booking/BookingModal";
 import { barbers, mockQueue, Barber } from "@/lib/data";
 import { Button } from "@/components/ui/button";
-import { MapPin, Clock, Facebook, Mail, CheckCircle2, Navigation } from "lucide-react";
+import { MapPin, Clock, Facebook, Mail, CheckCircle2, Navigation, Scissors } from "lucide-react";
 import LogoImg from "@assets/image_1773147860918.png";
 
 export default function Home() {
