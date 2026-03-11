@@ -30,12 +30,18 @@ import {
   useBookings, useServices, useSettings,
 } from "@/hooks/useFirestore";
 import {
-  updateBarber, addBarber, deleteBarber,
-  updateBooking, deleteBooking,
-  updateQueueItem, removeFromQueue,
-  createService, updateService, deleteService,
-  updateSettings,
-} from "@/lib/firestore";
+  adminUpdateBarber,
+  adminCreateBarber,
+  adminDeleteBarber,
+  adminUpdateBookingStatus,
+  adminDeleteBooking,
+  adminUpdateQueueItem,
+  adminRemoveFromQueue,
+  adminCreateService,
+  adminUpdateService,
+  adminDeleteService,
+  adminUpdateSettings,
+} from "@/lib/adminApi";
 import { useToast } from "@/hooks/use-toast";
 import type { Barber, Service, Booking } from "@/lib/types";
 import { DAYS_OF_WEEK } from "@/lib/types";
@@ -116,9 +122,9 @@ function ServiceDialog({
         createdAt: service?.createdAt || new Date().toISOString(),
       };
       if (isEdit && service) {
-        await updateService(service.id, data);
+        await adminUpdateService(service.id, data);
       } else {
-        await createService(data);
+        await adminCreateService(data);
       }
       toast({ title: isEdit ? "Service updated ✓" : "Service created ✓" });
       onSaved();
@@ -263,9 +269,9 @@ function BarberDialog({
         createdAt: barber?.createdAt || new Date().toISOString(),
       };
       if (isEdit && barber) {
-        await updateBarber(barber.id, data);
+        await adminUpdateBarber(barber.id, data);
       } else {
-        await addBarber(data);
+        await adminCreateBarber(data);
       }
       toast({ title: isEdit ? "Barber updated ✓" : "Barber added ✓" });
       onSaved();
@@ -610,7 +616,7 @@ function AdminLogin() {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="email">Email address</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@rkbarbershop.com" required className="bg-background border-border/50 h-11" />
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" required className="bg-background border-border/50 h-11" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -665,7 +671,7 @@ function AdminLogin() {
 // Main Admin Dashboard
 // ─────────────────────────────────────────────────────────
 export default function Admin() {
-  const { user, loading: authLoading, signOut, changePassword } = useAuth();
+  const { user, loading: authLoading, isAdmin, signOut, changePassword } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const { barbers, loading: barbersLoading } = useBarbers();
   const { queue, loading: queueLoading } = useQueue();
@@ -745,6 +751,24 @@ export default function Admin() {
     );
   }
   if (!user) return <AdminLogin />;
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="max-w-md w-full rounded-2xl border border-border/50 bg-card p-6 text-center">
+          <h1 className="text-xl font-bold font-heading mb-2">Access Denied</h1>
+          <p className="text-sm text-muted-foreground mb-5">
+            This account does not have admin permissions for RK Barbershop.
+          </p>
+          <div className="flex items-center justify-center gap-2">
+            <Link href="/">
+              <Button variant="outline">Back to Home</Button>
+            </Link>
+            <Button variant="destructive" onClick={signOut}>Sign Out</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const todayReservations = todayBookings.filter((b) => b.type === "reservation");
   const todayWalkins = todayBookings.filter((b) => b.type === "walkin");
@@ -763,28 +787,28 @@ export default function Admin() {
   ];
 
   const handleToggleBarber = async (id: string, active: boolean) => {
-    await updateBarber(id, { active: !active });
+    await adminUpdateBarber(id, { active: !active });
     toast({ title: `Barber ${!active ? "enabled" : "disabled"}` });
   };
 
   const handleBookingStatus = async (id: string, status: "confirmed" | "cancelled" | "completed") => {
-    await updateBooking(id, { status });
+    await adminUpdateBookingStatus(id, status);
     toast({ title: `Booking marked as ${status}` });
   };
 
   const handleConfirmAllPending = async () => {
     const pending = allBookings.filter((b) => b.status === "pending");
     if (pending.length === 0) return;
-    await Promise.all(pending.map((b) => updateBooking(b.id, { status: "confirmed" })));
+    await Promise.all(pending.map((b) => adminUpdateBookingStatus(b.id, "confirmed")));
     toast({ title: `${pending.length} booking${pending.length > 1 ? "s" : ""} confirmed` });
   };
 
   const handleQueueNext = async (barberId: string) => {
     const bq = activeQueue.filter((q) => q.barberId === barberId).sort((a, b) => a.position - b.position);
     const inProgress = bq.find((q) => q.status === "in-progress");
-    if (inProgress) await removeFromQueue(inProgress.id);
+    if (inProgress) await adminRemoveFromQueue(inProgress.id);
     const next = bq.find((q) => q.status === "waiting");
-    if (next) await updateQueueItem(next.id, { status: "in-progress" });
+    if (next) await adminUpdateQueueItem(next.id, { status: "in-progress" });
     toast({ title: inProgress ? "Next customer called" : "Queue started" });
   };
 
@@ -792,9 +816,9 @@ export default function Admin() {
     if (!deleteTarget) return;
     setDeleteLoading(true);
     try {
-      if (deleteTarget.type === "barber") await deleteBarber(deleteTarget.id);
-      else if (deleteTarget.type === "service") await deleteService(deleteTarget.id);
-      else if (deleteTarget.type === "booking") await deleteBooking(deleteTarget.id);
+      if (deleteTarget.type === "barber") await adminDeleteBarber(deleteTarget.id);
+      else if (deleteTarget.type === "service") await adminDeleteService(deleteTarget.id);
+      else if (deleteTarget.type === "booking") await adminDeleteBooking(deleteTarget.id);
       toast({ title: `${deleteTarget.name} deleted` });
       setDeleteTarget(null);
     } catch {
@@ -1160,7 +1184,7 @@ export default function Admin() {
                 <div className="p-5 border-b border-border/50 flex justify-between items-center">
                   <div>
                     <h2 className="font-semibold">Upcoming Bookings</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">Pending &amp; confirmed — sorted by date</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Pending &amp; confirmed</p>
                   </div>
                   <Button variant="outline" size="sm" onClick={() => setActiveTab("bookings")}>View All</Button>
                 </div>
@@ -1246,7 +1270,10 @@ export default function Admin() {
                               <span className="font-bold text-primary">₱{s.price}</span>
                               <button
                                 type="button"
-                                onClick={() => { updateService(s.id, { active: !s.active }); toast({ title: s.active ? "Service hidden" : "Service visible" }); }}
+                                onClick={async () => {
+                                  await adminUpdateService(s.id, { active: !s.active });
+                                  toast({ title: s.active ? "Service hidden" : "Service visible" });
+                                }}
                                 className={cn("text-xs px-2 py-0.5 rounded-full border transition-all hover:opacity-80",
                                   s.active ? "border-emerald-500/50 text-emerald-500 bg-emerald-500/10" : "border-border/50 text-muted-foreground"
                                 )}
@@ -1261,7 +1288,10 @@ export default function Admin() {
                         <ContextMenuItem onClick={() => setEditService(s)}>
                           <Edit2 className="w-4 h-4 mr-2" /> Edit Service
                         </ContextMenuItem>
-                        <ContextMenuItem onClick={() => { updateService(s.id, { active: !s.active }); toast({ title: s.active ? "Service hidden" : "Service visible" }); }}>
+                        <ContextMenuItem onClick={async () => {
+                          await adminUpdateService(s.id, { active: !s.active });
+                          toast({ title: s.active ? "Service hidden" : "Service visible" });
+                        }}>
                           {s.active ? "Hide Service" : "Show Service"}
                         </ContextMenuItem>
                         <ContextMenuSeparator />
@@ -1558,7 +1588,7 @@ export default function Admin() {
                                       {item.status === "in-progress" && <p className="text-xs text-primary flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> In Chair</p>}
                                     </div>
                                   </div>
-                                  <Button size="sm" variant="ghost" className="text-red-500 h-7 w-7 p-0 hover:bg-red-500/10" onClick={() => removeFromQueue(item.id).then(() => toast({ title: "Removed from queue" }))}>
+                                  <Button size="sm" variant="ghost" className="text-red-500 h-7 w-7 p-0 hover:bg-red-500/10" onClick={() => adminRemoveFromQueue(item.id).then(() => toast({ title: "Removed from queue" }))}>
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </Button>
                                 </div>
@@ -1569,7 +1599,7 @@ export default function Admin() {
                                 </ContextMenuItem>
                                 <ContextMenuSeparator />
                                 <ContextMenuItem className="text-red-500 focus:text-red-500 focus:bg-red-500/10"
-                                  onClick={() => removeFromQueue(item.id).then(() => toast({ title: "Removed from queue" }))}>
+                                  onClick={() => adminRemoveFromQueue(item.id).then(() => toast({ title: "Removed from queue" }))}>
                                   <Trash2 className="w-4 h-4 mr-2" /> Remove
                                 </ContextMenuItem>
                               </ContextMenuContent>
@@ -1728,7 +1758,7 @@ export default function Admin() {
                   onClick={async () => {
                     setSettingsSaving(true);
                     try {
-                      await updateSettings({
+                      await adminUpdateSettings({
                         shopName,
                         tagline,
                         aboutText,

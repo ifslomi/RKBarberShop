@@ -3,6 +3,7 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged,
+  getIdTokenResult,
   EmailAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
@@ -13,6 +14,7 @@ import { auth } from "@/lib/firebase";
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
+  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
@@ -23,11 +25,46 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const adminAllowlist = (import.meta.env.VITE_ADMIN_EMAIL_ALLOWLIST || "")
+    .split(",")
+    .map((entry: string) => entry.trim().toLowerCase())
+    .filter(Boolean);
+
+  const adminEmailFallback = (import.meta.env.VITE_ADMIN_EMAIL || "")
+    .trim()
+    .toLowerCase();
+
+  const allowedAdminEmails = new Set([
+    ...adminAllowlist,
+    ...(adminEmailFallback ? [adminEmailFallback] : []),
+  ]);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      setLoading(true);
       setUser(u);
-      setLoading(false);
+
+      if (!u) {
+        setIsAdmin(false);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const token = await getIdTokenResult(u);
+        const claims = token.claims as Record<string, unknown>;
+        const hasAdminClaim = claims.admin === true || claims.role === "admin";
+        const email = (u.email || "").trim().toLowerCase();
+        const hasAllowedEmail = email.length > 0 && allowedAdminEmails.has(email);
+
+        setIsAdmin(hasAdminClaim || hasAllowedEmail);
+      } catch {
+        setIsAdmin(false);
+      } finally {
+        setLoading(false);
+      }
     });
     return unsub;
   }, []);
@@ -52,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut, changePassword }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, signIn, signOut, changePassword }}>
       {children}
     </AuthContext.Provider>
   );

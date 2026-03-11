@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import {
   onBarbersSnapshot,
   onQueueSnapshot,
-  onBookingsSnapshot,
-  onTodayBookingsSnapshot,
   onSettingsSnapshot,
   onServicesSnapshot,
 } from "@/lib/firestore";
+import { adminGetBookings } from "@/lib/adminApi";
 import type { Barber, Booking, QueueItem, ShopSettings, Service } from "@/lib/types";
 
 export function useBarbers() {
@@ -47,11 +48,44 @@ export function useBookings() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsub = onBookingsSnapshot(
-      (data) => { setBookings(data); setLoading(false); },
-      (err) => { console.error("Bookings snapshot error:", err); setError(err.message); setLoading(false); }
-    );
-    return unsub;
+    let mounted = true;
+
+    async function loadBookings() {
+      try {
+        const data = await adminGetBookings();
+        if (!mounted) return;
+        setBookings(data);
+        setError(null);
+      } catch (err) {
+        if (!mounted) return;
+        const message = err instanceof Error ? err.message : "Failed to load bookings";
+        console.error("Admin bookings fetch error:", err);
+        setError(message);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (!mounted) return;
+
+      if (!user) {
+        setBookings([]);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      loadBookings();
+    });
+
+    return () => {
+      mounted = false;
+      unsubAuth();
+    };
   }, []);
 
   return { bookings, loading, error };
@@ -63,11 +97,46 @@ export function useTodayBookings() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsub = onTodayBookingsSnapshot(
-      (data) => { setBookings(data); setLoading(false); },
-      (err) => { console.error("Today bookings snapshot error:", err); setError(err.message); setLoading(false); }
-    );
-    return unsub;
+    let mounted = true;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    async function loadTodayBookings() {
+      try {
+        const data = await adminGetBookings(today);
+        if (!mounted) return;
+        setBookings(data);
+        setError(null);
+      } catch (err) {
+        if (!mounted) return;
+        const message = err instanceof Error ? err.message : "Failed to load today's bookings";
+        console.error("Admin today bookings fetch error:", err);
+        setError(message);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (!mounted) return;
+
+      if (!user) {
+        setBookings([]);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      loadTodayBookings();
+    });
+
+    return () => {
+      mounted = false;
+      unsubAuth();
+    };
   }, []);
 
   return { bookings, loading, error };
