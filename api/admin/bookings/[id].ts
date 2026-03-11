@@ -1,4 +1,4 @@
-import { getFirebaseAdminServices } from "../../_firebaseAdmin";
+import { getFirebaseAdminServices } from "../../_firebaseAdmin.js";
 
 type Claims = {
   admin?: boolean;
