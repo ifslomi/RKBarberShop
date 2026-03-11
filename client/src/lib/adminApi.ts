@@ -54,6 +54,12 @@ export async function adminUpdateBookingStatus(id: string, status: Booking["stat
 export async function adminGetBookings(date?: string): Promise<Booking[]> {
   const query = date ? `?date=${encodeURIComponent(date)}` : "";
   const response = await adminRequest("GET", `/api/admin/bookings${query}`);
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    const body = await response.text();
+    throw new Error(`Expected JSON response for bookings API but received '${contentType || "unknown"}'. First bytes: ${body.slice(0, 120)}`);
+  }
+
   return (await response.json()) as Booking[];
 }
 
