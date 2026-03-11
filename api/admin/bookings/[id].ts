@@ -1,4 +1,4 @@
-import { adminAuth, adminDb } from "../../../server/firebaseAdmin";
+import { getFirebaseAdminServices } from "../../_firebaseAdmin";
 
 type Claims = {
   admin?: boolean;
@@ -32,6 +32,7 @@ async function requireAdmin(req: any): Promise<{ ok: true } | { ok: false; statu
   }
 
   try {
+    const { adminAuth } = getFirebaseAdminServices();
     const decoded = await adminAuth.verifyIdToken(token, true);
     if (!hasAdminRights(decoded as Claims)) {
       return { ok: false, status: 403, message: "Admin role required" };
@@ -56,6 +57,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    const { adminDb } = getFirebaseAdminServices();
     if (req.method === "PATCH") {
       const status = req.body?.status;
       const allowed = new Set(["pending", "confirmed", "cancelled", "completed"]);
@@ -78,6 +80,7 @@ export default async function handler(req: any, res: any) {
     res.status(405).json({ message: "Method not allowed" });
   } catch (error) {
     console.error("admin bookings mutation failed", error);
-    res.status(500).json({ message: "Booking operation failed" });
+    const message = error instanceof Error ? error.message : "Booking operation failed";
+    res.status(500).json({ message });
   }
 }

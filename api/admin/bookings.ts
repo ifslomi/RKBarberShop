@@ -1,4 +1,4 @@
-import { adminAuth, adminDb } from "../../server/firebaseAdmin";
+import { getFirebaseAdminServices } from "../_firebaseAdmin";
 
 type Claims = {
   admin?: boolean;
@@ -32,6 +32,7 @@ async function requireAdmin(req: any): Promise<{ ok: true } | { ok: false; statu
   }
 
   try {
+    const { adminAuth } = getFirebaseAdminServices();
     const decoded = await adminAuth.verifyIdToken(token, true);
     if (!hasAdminRights(decoded as Claims)) {
       return { ok: false, status: 403, message: "Admin role required" };
@@ -55,6 +56,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    const { adminDb } = getFirebaseAdminServices();
     const date = String(req.query?.date || "").trim();
     const snapshot = await adminDb.collection("bookings").orderBy("createdAt", "desc").get();
     const bookings = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) })) as Array<
@@ -65,6 +67,7 @@ export default async function handler(req: any, res: any) {
     res.status(200).json(filtered);
   } catch (error) {
     console.error("admin bookings GET failed", error);
-    res.status(500).json({ message: "Failed to load bookings" });
+    const message = error instanceof Error ? error.message : "Failed to load bookings";
+    res.status(500).json({ message });
   }
 }
