@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -54,6 +54,10 @@ function isBarberAvailableNow(barber: Barber): boolean {
   const todayName = DAY_NAMES[now.getDay()];
   const workDays = barber.availableDays;
   if (workDays && workDays.length > 0 && !workDays.includes(todayName)) return false;
+
+  // Check admin-set specific days off
+  const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  if (barber.daysOff && barber.daysOff.includes(todayISO)) return false;
 
   // Parse time helper (returns minutes since midnight)
   const parseTime = (t: string) => {
@@ -125,6 +129,11 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
     setEmail("");
     setPhoneError("");
   };
+
+  useEffect(() => {
+    if (!open) return;
+    setSelectedBarber(initialBarber ?? null);
+  }, [open, initialBarber]);
 
   const handleClose = () => {
     onOpenChange(false);
@@ -221,6 +230,26 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
         ? prev.filter((s) => s.id !== service.id)
         : [...prev, service]
     );
+  };
+
+  const shouldSkipBarberStep =
+    !!initialBarber &&
+    !!selectedBarber &&
+    selectedBarber.id === initialBarber.id &&
+    (type !== "walkin" || isBarberAvailableNow(selectedBarber));
+
+  const goNextStep = () => {
+    setStep((current) => {
+      if (current === 1 && shouldSkipBarberStep) return 3;
+      return current + 1;
+    });
+  };
+
+  const goPreviousStep = () => {
+    setStep((current) => {
+      if (current === 3 && shouldSkipBarberStep) return 1;
+      return current - 1;
+    });
   };
 
   return (
@@ -398,12 +427,18 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                     </div>
                   )}
                   <div className="space-y-1.5">
-                    <Label className="text-sm">Notes (Optional)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Notes (Optional)</Label>
+                      <span className={cn("text-xs tabular-nums", notes.length >= 260 ? "text-amber-500" : "text-muted-foreground")}>
+                        {notes.length}/280
+                      </span>
+                    </div>
                     <textarea
                       value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
+                      onChange={(e) => setNotes(e.target.value.slice(0, 280))}
                       placeholder="Specific style, preferences, or requests..."
                       rows={2}
+                      maxLength={280}
                       className="w-full rounded-xl border border-border/50 bg-input/50 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
@@ -639,16 +674,23 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                       ...(type === "reservation" && date && time
                         ? [{ label: "Schedule", value: `${format(date, "MMM d, yyyy")} at ${time}` }]
                         : []),
-                      ...(notes ? [{ label: "Notes", value: notes }] : []),
                     ].map(({ label, value }) => (
                       <div
                         key={label}
                         className="flex justify-between items-start text-sm border-b border-border/30 pb-2.5 last:border-0 last:pb-0"
                       >
                         <span className="text-muted-foreground shrink-0 mr-4">{label}</span>
-                        <span className="font-medium text-right">{value}</span>
+                        <span className="font-medium text-right break-words max-w-[65%]">{value}</span>
                       </div>
                     ))}
+                    {notes && (
+                      <div className="text-sm border-b border-border/30 pb-2.5">
+                        <span className="text-muted-foreground block mb-1.5">Notes</span>
+                        <div className="bg-muted/40 border border-border/30 rounded-xl px-3 py-2 max-h-20 overflow-y-auto text-xs leading-relaxed break-words whitespace-pre-wrap">
+                          {notes}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex justify-between items-center pt-1.5 text-base border-t border-border/50 mt-1">
                       <span className="font-semibold">Total</span>
                       <span className="font-bold text-primary text-xl">₱{totalPrice}</span>
@@ -674,7 +716,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
             type="button"
             variant="outline"
             className="flex-1 h-11"
-            onClick={step === 1 ? handleClose : () => setStep((s) => s - 1)}
+            onClick={step === 1 ? handleClose : goPreviousStep}
             disabled={submitting}
           >
             {step === 1 ? "Cancel" : "Back"}
@@ -683,7 +725,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
             <Button
               type="button"
               className="flex-1 h-11 bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => setStep((s) => s + 1)}
+              onClick={goNextStep}
               disabled={!canProceed()}
             >
               Next <ChevronRight className="w-4 h-4 ml-1" />

@@ -3,6 +3,9 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
   type User,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -12,6 +15,7 @@ interface AuthContextValue {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -36,8 +40,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await firebaseSignOut(auth);
   };
 
+  const changePassword = async (oldPassword: string, newPassword: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || !currentUser.email) {
+      throw new Error("No authenticated admin user");
+    }
+
+    const credential = EmailAuthProvider.credential(currentUser.email, oldPassword);
+    await reauthenticateWithCredential(currentUser, credential);
+    await updatePassword(currentUser, newPassword);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut, changePassword }}>
       {children}
     </AuthContext.Provider>
   );

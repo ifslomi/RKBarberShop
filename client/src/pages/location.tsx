@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
-import { Link } from "wouter";
-import { ArrowLeft, MapPin, Clock, Mail, Facebook, Navigation, Phone } from "lucide-react";
+import { MapPin, Clock, Mail, Facebook, Navigation, Phone } from "lucide-react";
+import { AmbientPageBackground } from "@/components/layout/AmbientPageBackground";
 import { Navbar } from "@/components/layout/Navbar";
 import { useSettings } from "@/hooks/useFirestore";
 import LogoImg from "@assets/rkbarber-logo-transparent.png";
@@ -18,18 +18,46 @@ export default function LocationPage() {
 
   const shopName = settings?.shopName || "RK Barbershop";
 
-  return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+  // Use keyless Google Maps embeds to avoid API key errors in production.
+  const mapsEmbedSrc = (() => {
+    const fallbackQuery = [
+      settings?.address || "Sanggalang Street, Maguihan",
+      settings?.city || "Lemery, Batangas",
+      settings?.country || "Philippines",
+    ]
+      .filter(Boolean)
+      .join(", ");
 
-      {/* Header */}
-      <section className="pt-28 pb-12 border-b border-border/30">
+    const toEmbedUrl = (query: string) =>
+      `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`;
+
+    const raw = settings?.googleMapsUrl?.trim() || "";
+    if (!raw) return toEmbedUrl(fallbackQuery);
+
+    if (raw.includes("/maps/embed") && !raw.includes("/maps/embed/v1/")) {
+      return raw;
+    }
+
+    try {
+      const url = new URL(raw);
+      const queryFromUrl =
+        url.searchParams.get("q") ||
+        url.searchParams.get("query") ||
+        url.pathname.split("/place/")[1]?.split("/")[0]?.replace(/\+/g, " ");
+
+      return toEmbedUrl(decodeURIComponent(queryFromUrl || fallbackQuery));
+    } catch {
+      return toEmbedUrl(fallbackQuery);
+    }
+  })();
+
+  return (
+    <AmbientPageBackground className="min-h-screen bg-background">
+        <Navbar />
+
+        {/* Header */}
+        <section className="pt-28 pb-12 border-b border-border/30">
         <div className="container mx-auto px-4 md:px-6">
-          <Link href="/">
-            <button type="button" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8 text-sm">
-              <ArrowLeft className="w-4 h-4" /> Back to Home
-            </button>
-          </Link>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -48,10 +76,10 @@ export default function LocationPage() {
             </p>
           </motion.div>
         </div>
-      </section>
+        </section>
 
-      {/* Content */}
-      <section className="py-16">
+        {/* Content */}
+        <section className="py-16">
         <div className="container mx-auto px-4 md:px-6">
           <div className="grid lg:grid-cols-2 gap-12">
             {/* Info */}
@@ -147,7 +175,7 @@ export default function LocationPage() {
               className="h-[420px] lg:h-full min-h-[360px] rounded-3xl overflow-hidden border border-border/50 relative"
             >
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15495.646271256024!2d120.90119!3d13.87014!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd1444b1a0e8b7%3A0x3c4e13a0a94d2337!2sLemery%2C%20Batangas!5e0!3m2!1sen!2sph!4v1234567890"
+                src={mapsEmbedSrc}
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}
@@ -160,13 +188,13 @@ export default function LocationPage() {
             </motion.div>
           </div>
         </div>
-      </section>
+        </section>
 
-      <footer className="py-6 border-t border-border/30 text-center">
-        <p className="text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} {shopName}. All rights reserved.
-        </p>
-      </footer>
-    </div>
+        <footer className="py-6 border-t border-border/30 text-center">
+          <p className="text-sm text-muted-foreground">
+            &copy; {new Date().getFullYear()} {shopName}. All rights reserved.
+          </p>
+        </footer>
+    </AmbientPageBackground>
   );
 }

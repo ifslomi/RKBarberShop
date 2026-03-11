@@ -120,7 +120,9 @@ export function onTodayBookingsSnapshot(
     orderBy("createdAt", "desc")
   );
   return onSnapshot(q, (snap) => {
-    const today = new Date().toISOString().split("T")[0];
+    // Use local date (not UTC) to match how bookings are stored via date-fns format()
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const bookings = snap.docs
       .map((d) => ({ id: d.id, ...d.data() }) as Booking)
       .filter((b) => b.date === today);

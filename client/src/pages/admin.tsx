@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AmbientPageBackground } from "@/components/layout/AmbientPageBackground";
 import {
   Table, TableBody, TableCell, TableHead,
   TableHeader, TableRow,
@@ -35,7 +36,6 @@ import {
   createService, updateService, deleteService,
   updateSettings,
 } from "@/lib/firestore";
-import { seedFirestore } from "@/lib/seed";
 import { useToast } from "@/hooks/use-toast";
 import type { Barber, Service, Booking } from "@/lib/types";
 import { DAYS_OF_WEEK } from "@/lib/types";
@@ -166,6 +166,32 @@ function ServiceDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+// ─────────────────────────────────────────────────────────
+// Time conversion helpers for barber availability inputs
+// ─────────────────────────────────────────────────────────
+function to24Hour(time12: string): string {
+  if (!time12) return "09:00";
+  const parts = time12.trim().split(" ");
+  if (parts.length < 2) return "09:00";
+  const [timePart, period] = parts;
+  const colonParts = timePart.split(":");
+  let h = parseInt(colonParts[0], 10);
+  const m = parseInt(colonParts[1] || "0", 10);
+  if (period === "PM" && h !== 12) h += 12;
+  if (period === "AM" && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function to12Hour(time24: string): string {
+  if (!time24) return "9:00 AM";
+  const [hStr, mStr] = time24.split(":");
+  let h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  const period = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${String(m).padStart(2, "0")} ${period}`;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -305,11 +331,21 @@ function BarberDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Available From</Label>
-              <Input value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} placeholder="9:00 AM" className="bg-input/50" />
+              <Input
+                type="time"
+                value={to24Hour(availableFrom)}
+                onChange={(e) => setAvailableFrom(to12Hour(e.target.value))}
+                className="bg-input/50"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Available To</Label>
-              <Input value={availableTo} onChange={(e) => setAvailableTo(e.target.value)} placeholder="8:00 PM" className="bg-input/50" />
+              <Input
+                type="time"
+                value={to24Hour(availableTo)}
+                onChange={(e) => setAvailableTo(to12Hour(e.target.value))}
+                className="bg-input/50"
+              />
             </div>
           </div>
           <div className="space-y-2">
@@ -447,14 +483,24 @@ function BookingDetailsDialog({
             {[
               { label: "Service(s)", value: booking.serviceName || "—" },
               ...(booking.date ? [{ label: "Date & Time", value: `${booking.date}${booking.time ? ` · ${booking.time}` : ""}` }] : []),
-              ...(booking.notes ? [{ label: "Notes", value: booking.notes }] : []),
               { label: "Booking ID", value: `#${booking.id.slice(-6).toUpperCase()}` },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-start justify-between px-4 py-2.5 text-sm">
                 <span className="text-muted-foreground shrink-0 mr-4">{label}</span>
-                <span className="font-medium text-right break-all">{value}</span>
+                <span className="font-medium text-right break-words max-w-[65%]">{value}</span>
               </div>
             ))}
+            {booking.notes && (
+              <div className="px-4 py-2.5 text-sm">
+                <span className="text-muted-foreground block mb-1.5">Notes</span>
+                <div
+                  className="bg-muted/30 border border-border/30 rounded-xl px-3 py-2 max-h-28 overflow-y-auto overflow-x-hidden text-xs leading-relaxed"
+                  style={{ wordBreak: "break-all", overflowWrap: "anywhere" }}
+                >
+                  {booking.notes}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action buttons */}
@@ -619,7 +665,7 @@ function AdminLogin() {
 // Main Admin Dashboard
 // ─────────────────────────────────────────────────────────
 export default function Admin() {
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading, signOut, changePassword } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const { barbers, loading: barbersLoading } = useBarbers();
   const { queue, loading: queueLoading } = useQueue();
@@ -630,13 +676,51 @@ export default function Admin() {
   const { toast } = useToast();
 
   // Settings form state
+  const [shopName, setShopName] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [aboutText, setAboutText] = useState("");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [province, setProvince] = useState("");
+  const [country, setCountry] = useState("");
+  const [operatingDays, setOperatingDays] = useState("");
+  const [openTime, setOpenTime] = useState("");
+  const [closeTime, setCloseTime] = useState("");
+  const [email, setEmail] = useState("");
+  const [facebookUrl, setFacebookUrl] = useState("");
+  const [tiktokUrl, setTiktokUrl] = useState("");
+  const [googleMapsUrl, setGoogleMapsUrl] = useState("");
   const [gcashNumber, setGcashNumber] = useState("");
   const [reservationPolicyText, setReservationPolicyText] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [confirmPasswordChangeOpen, setConfirmPasswordChangeOpen] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
 
   // Sync settings form when data loads
   useEffect(() => {
     if (settings) {
+      setShopName(settings.shopName || "");
+      setTagline(settings.tagline || "");
+      setAboutText(settings.aboutText || "");
+      setAddress(settings.address || "");
+      setCity(settings.city || "");
+      setProvince(settings.province || "");
+      setCountry(settings.country || "");
+      setOperatingDays(settings.operatingDays || "");
+      setOpenTime(settings.openTime || "");
+      setCloseTime(settings.closeTime || "");
+      setEmail(settings.email || "");
+      setFacebookUrl(settings.facebookUrl || "");
+      setTiktokUrl(settings.tiktokUrl || "");
+      setGoogleMapsUrl(settings.googleMapsUrl || "");
       setGcashNumber(settings.gcashNumber || "");
       setReservationPolicyText(settings.reservationPolicyText || "");
     }
@@ -647,8 +731,11 @@ export default function Admin() {
   const [editService, setEditService] = useState<Service | null | "new">(null);
   const [deleteTarget, setDeleteTarget] = useState<{ type: "barber" | "service" | "booking"; id: string; name: string } | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [viewBooking, setViewBooking] = useState<Booking | null>(null);
+
+  // Booking filters
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterBarber, setFilterBarber] = useState<string>("all");
 
   if (authLoading) {
     return (
@@ -675,18 +762,6 @@ export default function Admin() {
     { title: "Available Barbers", value: activeBarbers.length, icon: CheckCircle, sub: `${barbers.length - activeBarbers.length} inactive`, tab: "barbers" },
   ];
 
-  const handleSeed = async () => {
-    setSeeding(true);
-    try {
-      const r = await seedFirestore();
-      toast({ title: "Database Seeded", description: `${r.barbersCreated} barbers, ${r.servicesCreated} services.` });
-    } catch {
-      toast({ title: "Seed Failed", variant: "destructive" });
-    } finally {
-      setSeeding(false);
-    }
-  };
-
   const handleToggleBarber = async (id: string, active: boolean) => {
     await updateBarber(id, { active: !active });
     toast({ title: `Barber ${!active ? "enabled" : "disabled"}` });
@@ -695,6 +770,13 @@ export default function Admin() {
   const handleBookingStatus = async (id: string, status: "confirmed" | "cancelled" | "completed") => {
     await updateBooking(id, { status });
     toast({ title: `Booking marked as ${status}` });
+  };
+
+  const handleConfirmAllPending = async () => {
+    const pending = allBookings.filter((b) => b.status === "pending");
+    if (pending.length === 0) return;
+    await Promise.all(pending.map((b) => updateBooking(b.id, { status: "confirmed" })));
+    toast({ title: `${pending.length} booking${pending.length > 1 ? "s" : ""} confirmed` });
   };
 
   const handleQueueNext = async (barberId: string) => {
@@ -722,17 +804,70 @@ export default function Admin() {
     }
   };
 
+  const resetChangePasswordForm = () => {
+    setOldPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setShowOldPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setPasswordError("");
+  };
+
+  const validateChangePassword = () => {
+    if (!oldPassword || !newPassword || !confirmNewPassword) {
+      setPasswordError("Please fill out all password fields.");
+      return false;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError("New password must be at least 6 characters.");
+      return false;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError("New passwords do not match.");
+      return false;
+    }
+    if (oldPassword === newPassword) {
+      setPasswordError("New password must be different from old password.");
+      return false;
+    }
+    setPasswordError("");
+    return true;
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordSaving(true);
+    try {
+      await changePassword(oldPassword, newPassword);
+      toast({ title: "Password updated ✓" });
+      setConfirmPasswordChangeOpen(false);
+      setChangePasswordOpen(false);
+      resetChangePasswordForm();
+    } catch (err: any) {
+      const code = err?.code || "";
+      if (code.includes("wrong-password") || code.includes("invalid-credential")) {
+        setPasswordError("Old password is incorrect.");
+      } else if (code.includes("too-many-requests")) {
+        setPasswordError("Too many attempts. Please try again later.");
+      } else {
+        setPasswordError("Failed to change password. Please try again.");
+      }
+      setConfirmPasswordChangeOpen(false);
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
   const TABS = [
     { key: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { key: "services",  icon: Scissors,       label: "Services" },
     { key: "barbers",   icon: Users,           label: "Barbers" },
     { key: "bookings",  icon: Calendar,        label: "Bookings" },
     { key: "queue",     icon: Activity,        label: "Queue" },
-    { key: "settings",  icon: Settings,        label: "Settings" },
   ];
 
   return (
-    <div className="min-h-screen bg-background flex flex-col md:flex-row">
+    <AmbientPageBackground className="h-screen bg-background" contentClassName="h-full overflow-hidden flex flex-col md:flex-row">
       {/* Dialogs */}
       {deleteTarget && (
         <DeleteDialog
@@ -767,6 +902,140 @@ export default function Admin() {
         availableServices={services}
       />
 
+      <Dialog
+        open={changePasswordOpen}
+        onOpenChange={(open) => {
+          setChangePasswordOpen(open);
+          if (!open) {
+            setConfirmPasswordChangeOpen(false);
+            resetChangePasswordForm();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md bg-card border-border/50">
+          <DialogHeader>
+            <DialogTitle>Change Admin Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <p className="text-xs text-muted-foreground">Signed in as {user?.email || "admin"}</p>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="old-password">Old Password</Label>
+              <div className="relative">
+                <Input
+                  id="old-password"
+                  type={showOldPassword ? "text" : "password"}
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  placeholder="Enter current password"
+                  className="bg-input/50 border-border/50 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowOldPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showOldPassword ? "Hide old password" : "Show old password"}
+                >
+                  {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="new-password">New Password</Label>
+              <div className="relative">
+                <Input
+                  id="new-password"
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="bg-input/50 border-border/50 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="confirm-new-password">Confirm New Password</Label>
+              <div className="relative">
+                <Input
+                  id="confirm-new-password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  placeholder="Re-enter new password"
+                  className="bg-input/50 border-border/50 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {passwordError && (
+              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                <p className="text-sm text-red-500">{passwordError}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setChangePasswordOpen(false);
+                setConfirmPasswordChangeOpen(false);
+                resetChangePasswordForm();
+              }}
+              disabled={passwordSaving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => {
+                if (validateChangePassword()) setConfirmPasswordChangeOpen(true);
+              }}
+              disabled={passwordSaving}
+            >
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmPasswordChangeOpen} onOpenChange={setConfirmPasswordChangeOpen}>
+        <DialogContent className="sm:max-w-sm bg-card border-border/50">
+          <DialogHeader>
+            <DialogTitle>Confirm Password Change</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Are you sure you want to change the admin password now?</p>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setConfirmPasswordChangeOpen(false)} disabled={passwordSaving}>
+              Back
+            </Button>
+            <Button type="button" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleChangePassword} disabled={passwordSaving}>
+              {passwordSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Updating…</> : "Confirm Change"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Sidebar (desktop) */}
       <aside className="hidden md:flex w-64 bg-card border-r border-border/50 flex-shrink-0 flex-col">
         <div className="h-16 flex items-center px-6 border-b border-border/50">
@@ -780,7 +1049,12 @@ export default function Admin() {
             <Button
               key={tab.key}
               variant={activeTab === tab.key ? "secondary" : "ghost"}
-              className="w-full justify-start font-medium"
+              className={cn(
+                "w-full justify-start font-medium transition-all duration-150",
+                activeTab === tab.key
+                  ? ""
+                  : "hover:bg-accent hover:text-foreground hover:translate-x-0.5"
+              )}
               onClick={() => setActiveTab(tab.key)}
             >
               <tab.icon className="mr-2 h-4 w-4" /> {tab.label}
@@ -788,10 +1062,14 @@ export default function Admin() {
           ))}
         </div>
         <div className="p-4 border-t border-border/50 space-y-1">
-          <Button variant="ghost" className="w-full justify-start text-muted-foreground" onClick={handleSeed} disabled={seeding}>
-            <Settings className="mr-2 h-4 w-4" /> {seeding ? "Seeding…" : "Seed Database"}
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-150"
+            onClick={() => setActiveTab("settings")}
+          >
+            <Settings className="mr-2 h-4 w-4" /> Settings
           </Button>
-          <Button variant="ghost" className="w-full justify-start text-muted-foreground" onClick={signOut}>
+          <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:bg-red-500/10 hover:text-red-400 transition-all duration-150" onClick={signOut}>
             <LogOut className="mr-2 h-4 w-4" /> Sign Out
           </Button>
         </div>
@@ -805,24 +1083,54 @@ export default function Admin() {
             <Link href="/"><Button variant="ghost" size="icon" className="w-8 h-8"><ArrowLeft className="w-4 h-4" /></Button></Link>
             <span className="font-heading font-bold text-sm">RK Admin</span>
           </div>
-          <div className="md:hidden flex items-center gap-1 overflow-x-auto">
-            {TABS.map((tab) => (
-              <Button key={tab.key} variant={activeTab === tab.key ? "secondary" : "ghost"} size="sm" onClick={() => setActiveTab(tab.key)} className="text-xs shrink-0 px-2">
-                {tab.label}
-              </Button>
-            ))}
-          </div>
+
           <div className="hidden md:block" />
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={signOut}><LogOut className="w-4 h-4" /></Button>
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30">
+            <div className="md:hidden flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8"
+                onClick={() => setActiveTab("settings")}
+                aria-label="Open settings"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 text-red-400 hover:text-red-400 hover:bg-red-500/10"
+                onClick={signOut}
+                aria-label="Sign out"
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="hidden md:flex w-8 h-8 rounded-full bg-primary/20 items-center justify-center border border-primary/30">
               <span className="text-xs font-bold text-primary">AD</span>
             </div>
           </div>
         </header>
 
+        {/* Mobile bottom nav */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border/50 flex items-center justify-around">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex flex-col items-center gap-0.5 px-2 py-3 flex-1 transition-colors ${activeTab === tab.key ? "text-primary" : "text-muted-foreground"}`}
+            >
+              <tab.icon className="w-5 h-5" />
+              <span className="text-[10px] font-medium">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
+
         {/* Content */}
-        <div className="flex-1 overflow-auto p-4 md:p-6 bg-muted/10">
+        <div className="flex-1 overflow-auto p-4 md:p-6 pb-20 md:pb-6 bg-muted/10">
 
           {/* ── Dashboard ─────────────────────────────────── */}
           {activeTab === "dashboard" && (
@@ -1032,6 +1340,16 @@ export default function Admin() {
                                 <p className="font-bold">₱{b.walkinPrice}</p>
                               </div>
                             </div>
+                            {b.daysOff && b.daysOff.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-border/30">
+                                <p className="text-xs text-muted-foreground mb-1.5">Days Off</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {b.daysOff.map((d) => (
+                                    <span key={d} className="text-xs px-2 py-0.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-full">{d}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </ContextMenuTrigger>
@@ -1056,11 +1374,78 @@ export default function Admin() {
           )}
 
           {/* ── Bookings ──────────────────────────────────── */}
-          {activeTab === "bookings" && (
+          {activeTab === "bookings" && (() => {
+            const filteredBookings = allBookings.filter((b) => {
+              if (filterStatus !== "all" && b.status !== filterStatus) return false;
+              if (filterBarber !== "all" && b.barberId !== filterBarber) return false;
+              return true;
+            });
+            return (
             <div className="space-y-6 max-w-6xl mx-auto">
-              <div>
-                <h1 className="text-2xl font-bold mb-1">All Bookings</h1>
-                <p className="text-muted-foreground text-sm">Manage all reservations and walk-ins. Right-click a row for shortcuts.</p>
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <h1 className="text-2xl font-bold mb-1">All Bookings</h1>
+                  <p className="text-muted-foreground text-sm">Manage all reservations and walk-ins. Right-click a row for shortcuts.</p>
+                </div>
+                {allBookings.some((b) => b.status === "pending") && (
+                  <button
+                    type="button"
+                    onClick={handleConfirmAllPending}
+                    className="shrink-0 flex items-center gap-1.5 text-xs px-3 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all font-medium"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Confirm All Pending
+                  </button>
+                )}
+              </div>
+              {/* Filters */}
+              <div className="bg-card/70 border border-border/50 rounded-2xl p-4 md:p-5 space-y-4">
+                <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</p>
+                    <div className="flex flex-wrap gap-2">
+                      {["all", "pending", "confirmed", "completed", "cancelled"].map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setFilterStatus(s)}
+                          className={cn(
+                            "h-9 px-3.5 rounded-full border text-xs font-medium transition-all capitalize",
+                            filterStatus === s
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                              : "border-border/60 text-muted-foreground hover:border-primary/50 hover:text-foreground hover:bg-accent/40"
+                          )}
+                        >
+                          {s === "all" ? "All" : s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="w-full sm:w-56 space-y-2">
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Barber</label>
+                    <select
+                      value={filterBarber}
+                      onChange={(e) => setFilterBarber(e.target.value)}
+                      className="w-full h-9 rounded-xl border border-border/60 bg-background/80 px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="all">All Barbers</option>
+                      {barbers.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {(filterStatus !== "all" || filterBarber !== "all") && (
+                  <button
+                    type="button"
+                    onClick={() => { setFilterStatus("all"); setFilterBarber("all"); }}
+                    className="text-xs font-medium text-muted-foreground hover:text-foreground underline underline-offset-4"
+                  >
+                    Clear filters
+                  </button>
+                )}
               </div>
               {allBookingsError && (
                 <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-500">
@@ -1082,9 +1467,9 @@ export default function Admin() {
                     <TableBody>
                       {allBookingsLoading ? (
                         <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                      ) : allBookings.length === 0 ? (
-                        <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground text-sm">No bookings yet</TableCell></TableRow>
-                      ) : allBookings.map((b) => (
+                      ) : filteredBookings.length === 0 ? (
+                        <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground text-sm">{allBookings.length === 0 ? "No bookings yet" : "No bookings match the current filters"}</TableCell></TableRow>
+                      ) : filteredBookings.map((b) => (
                         <ContextMenu key={b.id}>
                           <ContextMenuTrigger asChild>
                             <TableRow className="border-border/50 text-sm hover:bg-accent/30 cursor-default">
@@ -1130,7 +1515,8 @@ export default function Admin() {
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* ── Queue ─────────────────────────────────────── */}
           {activeTab === "queue" && (
@@ -1211,6 +1597,89 @@ export default function Admin() {
                 <p className="text-muted-foreground text-sm">Configure booking policies and payment details.</p>
               </div>
 
+              {/* Shop Content */}
+              <div className="bg-card rounded-2xl border border-border/50 overflow-hidden">
+                <div className="px-6 py-4 border-b border-border/50">
+                  <h2 className="font-semibold">Shop Content</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">These fields are shown on public pages.</p>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Shop Name</Label>
+                      <Input value={shopName} onChange={(e) => setShopName(e.target.value)} className="bg-input/50 border-border/50" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Tagline</Label>
+                      <Input value={tagline} onChange={(e) => setTagline(e.target.value)} className="bg-input/50 border-border/50" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>About Text</Label>
+                    <textarea
+                      value={aboutText}
+                      onChange={(e) => setAboutText(e.target.value)}
+                      rows={4}
+                      className="w-full rounded-xl border border-border/50 bg-input/50 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label>Address</Label>
+                      <Input value={address} onChange={(e) => setAddress(e.target.value)} className="bg-input/50 border-border/50" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>City</Label>
+                      <Input value={city} onChange={(e) => setCity(e.target.value)} className="bg-input/50 border-border/50" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Province</Label>
+                      <Input value={province} onChange={(e) => setProvince(e.target.value)} className="bg-input/50 border-border/50" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Country</Label>
+                      <Input value={country} onChange={(e) => setCountry(e.target.value)} className="bg-input/50 border-border/50" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Operating Days</Label>
+                      <Input value={operatingDays} onChange={(e) => setOperatingDays(e.target.value)} className="bg-input/50 border-border/50" />
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Open Time</Label>
+                      <Input value={openTime} onChange={(e) => setOpenTime(e.target.value)} placeholder="e.g. 9:00 AM" className="bg-input/50 border-border/50" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Close Time</Label>
+                      <Input value={closeTime} onChange={(e) => setCloseTime(e.target.value)} placeholder="e.g. 5:00 PM" className="bg-input/50 border-border/50" />
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label>Email</Label>
+                      <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="bg-input/50 border-border/50" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Facebook URL</Label>
+                      <Input value={facebookUrl} onChange={(e) => setFacebookUrl(e.target.value)} className="bg-input/50 border-border/50" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>TikTok URL</Label>
+                      <Input value={tiktokUrl} onChange={(e) => setTiktokUrl(e.target.value)} className="bg-input/50 border-border/50" />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label>Google Maps URL</Label>
+                      <Input value={googleMapsUrl} onChange={(e) => setGoogleMapsUrl(e.target.value)} className="bg-input/50 border-border/50" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* GCash / Payment */}
               <div className="bg-card rounded-2xl border border-border/50 overflow-hidden">
                 <div className="px-6 py-4 border-b border-border/50">
@@ -1252,27 +1721,58 @@ export default function Admin() {
                 </div>
               </div>
 
-              <Button
-                className="bg-primary text-primary-foreground hover:bg-primary/90 w-full sm:w-auto"
-                disabled={settingsSaving}
-                onClick={async () => {
-                  setSettingsSaving(true);
-                  try {
-                    await updateSettings({ gcashNumber, reservationPolicyText } as any);
-                    toast({ title: "Settings saved ✓" });
-                  } catch {
-                    toast({ title: "Failed to save settings", variant: "destructive" });
-                  } finally {
-                    setSettingsSaving(false);
-                  }
-                }}
-              >
-                {settingsSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : "Save Settings"}
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                <Button
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 w-full sm:w-auto h-11"
+                  disabled={settingsSaving}
+                  onClick={async () => {
+                    setSettingsSaving(true);
+                    try {
+                      await updateSettings({
+                        shopName,
+                        tagline,
+                        aboutText,
+                        address,
+                        city,
+                        province,
+                        country,
+                        operatingDays,
+                        openTime,
+                        closeTime,
+                        email,
+                        facebookUrl,
+                        tiktokUrl,
+                        googleMapsUrl,
+                        gcashNumber,
+                        reservationPolicyText,
+                      });
+                      toast({ title: "Settings saved ✓" });
+                    } catch {
+                      toast({ title: "Failed to save settings", variant: "destructive" });
+                    } finally {
+                      setSettingsSaving(false);
+                    }
+                  }}
+                >
+                  {settingsSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : "Save Settings"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full sm:w-auto h-11 border-border/60 transition-colors hover:bg-primary hover:text-primary-foreground"
+                  onClick={() => {
+                    setPasswordError("");
+                    setConfirmPasswordChangeOpen(false);
+                    setChangePasswordOpen(true);
+                  }}
+                >
+                  <Lock className="w-4 h-4 mr-2" /> Change Password
+                </Button>
+              </div>
             </div>
           )}
         </div>
       </main>
-    </div>
+    </AmbientPageBackground>
   );
 }

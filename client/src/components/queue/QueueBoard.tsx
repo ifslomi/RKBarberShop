@@ -33,7 +33,7 @@ export function QueueBoard({ queue, barbers }: QueueBoardProps) {
                   <span className="text-sm font-bold text-primary">{barber.name.charAt(0)}</span>
                 )}
               </div>
-              <h3 className="font-bold text-lg">Barber {barber.name}</h3>
+              <h3 className="font-bold text-lg">{barber.name}</h3>
             </div>
             <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-semibold">
               {queueByBarber[barber.id].length} in queue

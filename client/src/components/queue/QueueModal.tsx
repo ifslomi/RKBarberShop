@@ -28,6 +28,12 @@ export function QueueModal({ open, onOpenChange, queue, barbers, loading }: Queu
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
+        ) : barbers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+            <Activity className="w-10 h-10 opacity-30" />
+            <p className="text-sm font-medium">No barbers available right now</p>
+            <p className="text-xs opacity-60">Check back during shop hours.</p>
+          </div>
         ) : (
           <div className="pt-2">
             <QueueBoard queue={queue} barbers={barbers} />
