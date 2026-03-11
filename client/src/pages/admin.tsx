@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader,
-  DialogTitle, DialogFooter,
+  DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
   ContextMenu, ContextMenuTrigger, ContextMenuContent,
@@ -66,8 +66,8 @@ function DeleteDialog({
       <DialogContent className="sm:max-w-sm bg-card border-border/50">
         <DialogHeader>
           <DialogTitle className="text-lg">{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">{description}</p>
         <DialogFooter className="gap-2 mt-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Cancel</Button>
           <Button type="button" variant="destructive" onClick={onConfirm} disabled={loading}>
@@ -141,6 +141,9 @@ function ServiceDialog({
       <DialogContent className="sm:max-w-md bg-card border-border/50">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Service" : "Add Service"}</DialogTitle>
+          <DialogDescription>
+            {isEdit ? "Update this service details." : "Create a new service offering."}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
@@ -288,6 +291,9 @@ function BarberDialog({
       <DialogContent className="sm:max-w-lg bg-card border-border/50 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Barber" : "Add Barber"}</DialogTitle>
+          <DialogDescription>
+            {isEdit ? "Update barber profile and availability." : "Add a new barber profile and schedule."}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
@@ -449,6 +455,10 @@ function BookingDetailsDialog({
   return (
     <Dialog open={!!booking} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md bg-card border-border/50 shadow-2xl p-0 overflow-hidden">
+        <DialogHeader className="sr-only">
+          <DialogTitle>Booking details for {booking.customerName}</DialogTitle>
+          <DialogDescription>Review booking details and take booking actions.</DialogDescription>
+        </DialogHeader>
         {/* Header gradient strip */}
         <div className="h-1.5 w-full bg-gradient-to-r from-primary via-primary/60 to-transparent" />
 
@@ -939,6 +949,7 @@ export default function Admin() {
         <DialogContent className="sm:max-w-md bg-card border-border/50">
           <DialogHeader>
             <DialogTitle>Change Admin Password</DialogTitle>
+            <DialogDescription>Update your admin account password securely.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-1">
             <p className="text-xs text-muted-foreground">Signed in as {user?.email || "admin"}</p>
@@ -1047,6 +1058,7 @@ export default function Admin() {
         <DialogContent className="sm:max-w-sm bg-card border-border/50">
           <DialogHeader>
             <DialogTitle>Confirm Password Change</DialogTitle>
+            <DialogDescription>Confirm you want to apply the new admin password.</DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">Are you sure you want to change the admin password now?</p>
           <DialogFooter>
