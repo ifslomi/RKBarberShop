@@ -59,11 +59,24 @@ export default async function handler(req: any, res: any) {
   try {
     const { adminDb } = getFirebaseAdminServices();
     if (req.method === "PATCH") {
-      const status = req.body?.status;
-      const allowed = new Set(["pending", "confirmed", "cancelled", "completed"]);
-      if (!allowed.has(status)) {
-        res.status(400).json({ message: "Invalid booking status" });
+      const payload = req.body || {};
+      const status = payload.status;
+      const date = typeof payload.date === "string" ? payload.date.trim() : "";
+      const time = typeof payload.time === "string" ? payload.time.trim() : "";
+
+      const hasStatus = typeof status === "string" && status.length > 0;
+      const hasReschedule = date.length > 0 || time.length > 0;
+      if (!hasStatus && !hasReschedule) {
+        res.status(400).json({ message: "No fields provided" });
         return;
+      }
+
+      if (hasStatus) {
+        const allowed = new Set(["pending", "confirmed", "cancelled", "completed"]);
+        if (!allowed.has(status)) {
+          res.status(400).json({ message: "Invalid booking status" });
+          return;
+        }
       }
 
       if (status === "confirmed") {
@@ -77,8 +90,21 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      await adminDb.collection("bookings").doc(id).set({ status }, { merge: true });
-      res.status(200).json({ id, status });
+      const updates: Record<string, unknown> = {};
+      if (hasStatus) updates.status = status;
+      if (date.length > 0) updates.date = date;
+      if (time.length > 0) updates.time = time;
+
+      if (hasReschedule) {
+        updates.status = "confirmed";
+        updates.customerDecision = "accepted";
+        updates.customerDecisionAt = new Date().toISOString();
+        updates.customerActionRequired = false;
+        updates.rescheduledAt = new Date().toISOString();
+      }
+
+      await adminDb.collection("bookings").doc(id).set(updates, { merge: true });
+      res.status(200).json({ id, ...updates });
       return;
     }
 

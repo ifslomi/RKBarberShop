@@ -43,13 +43,27 @@ The project uses React on the client, Firebase Firestore as database, Firebase A
 - Reservation sends customer action email with secure links:
   - Accept
   - Cancel
-  - Request Reschedule
+  - Reschedule
 - Token in email is hashed in database for safety
 - Admin cannot confirm reservation until customer accepted from email
 - If customer does not act before one hour before appointment time, reservation is auto-cancelled
 - Walk-in bookings do not require email confirmation
 
-### 2.5 Admin Dashboard Features
+### 2.5 Customer Action Pages (Accept, Cancel, Reschedule)
+- Booking action pages were redesigned with a look close to the homepage visual style
+- Pages include:
+  - branded layout
+  - clearer result states
+  - back to homepage button
+- Reschedule link now opens a real reschedule form
+- Customer can directly pick new date and time from the page
+- Reschedule is validated against barber availability and days off
+- After successful reschedule:
+  - booking is updated immediately
+  - booking is confirmed (no admin confirmation needed for this action)
+  - customer receives a new email with updated schedule details
+
+### 2.6 Admin Dashboard Features
 - Dashboard overview stats
 - Service management
 - Barber management
@@ -57,8 +71,9 @@ The project uses React on the client, Firebase Firestore as database, Firebase A
 - Queue management
 - Shop settings management
 - Booking detail dialog with customer confirmation state
+- Booking reschedule action is available in admin booking details and booking context menu
 
-### 2.6 Real-Time Features
+### 2.7 Real-Time Features
 - Admin bookings list updates in real time using Firestore snapshots
 - No manual refresh needed for:
   - Delete booking
@@ -73,6 +88,10 @@ The project uses React on the client, Firebase Firestore as database, Firebase A
 - Changed booking pricing model to barber-based prices by booking type
 - Improved booking policy layout spacing in step 5
 - Added reservation email action flow (accept, cancel, reschedule)
+- Redesigned accept/cancel/reschedule pages with homepage-like layout and back navigation
+- Added customer self-service reschedule form with availability checks
+- Added automatic re-email after successful reschedule
+- Added admin reschedule controls in dashboard
 - Added anti-scam protection:
   - Server-side price calculation
   - Customer acceptance required before admin confirmation
@@ -96,6 +115,9 @@ The project uses React on the client, Firebase Firestore as database, Firebase A
    - backend creates secure action token hash
    - backend sends email links (accept, cancel, reschedule)
 7. Customer action updates booking state through secure action endpoint
+  - accept -> confirmed
+  - cancel -> cancelled
+  - reschedule -> customer chooses new schedule, system validates availability, then confirms booking and sends updated email
 8. Admin dashboard listens in real time and updates instantly
 9. Auto-expire endpoint cancels unattended reservation when time window is passed
 
@@ -103,7 +125,7 @@ The project uses React on the client, Firebase Firestore as database, Firebase A
 - New reservation: pending + customerDecision awaiting
 - Customer accept: booking status confirmed
 - Customer cancel: booking status cancelled
-- Customer reschedule request: remains pending with reschedule request decision
+- Customer reschedule: booking date/time updated and status confirmed without needing admin confirmation
 - No customer action before cutoff: auto-cancelled with expired decision
 
 ### 4.3 Price Logic
@@ -282,13 +304,15 @@ Cron note:
 - POST /api/bookings
   - Create booking with secure server-side price calculation
 - GET /api/bookings/action?action=accept|cancel|reschedule&token=...
-  - Customer booking action from email links
+  - Customer booking action pages and result pages
+  - For reschedule, GET serves form page and POST submits new schedule
 - GET /api/cron/expire-bookings
   - Auto-cancel unattended reservations past action window
 
 ### 13.2 Admin Endpoints
 - GET /api/admin/bookings
 - PATCH /api/admin/bookings/:id
+  - supports status updates and admin reschedule updates (date/time)
 - DELETE /api/admin/bookings/:id
 - PATCH /api/admin/queue/:id
 - DELETE /api/admin/queue/:id
@@ -312,6 +336,7 @@ Cron note:
 - Can manage barbers/services/queue/settings
 - Can manage bookings
 - Cannot confirm reservation before customer acceptance
+- Can reschedule booking directly from admin dashboard
 
 ---
 
@@ -342,6 +367,13 @@ Check:
 Check:
 - Firestore rules and connectivity
 - User is on updated build with snapshot-based bookings hooks
+
+### 16.6 Customer reschedule failed
+Check:
+- Selected date is inside barber available days
+- Selected date is not listed in barber days off
+- Selected time is inside barber schedule window
+- Action link is used before one-hour cutoff
 
 ### 16.4 Vercel cron error on Hobby
 Cause:

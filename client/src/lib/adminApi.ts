@@ -51,6 +51,10 @@ export async function adminUpdateBookingStatus(id: string, status: Booking["stat
   await adminRequest("PATCH", `/api/admin/bookings/${id}`, { status });
 }
 
+export async function adminRescheduleBooking(id: string, data: { date: string; time: string }): Promise<void> {
+  await adminRequest("PATCH", `/api/admin/bookings/${id}`, data as Record<string, unknown>);
+}
+
 export async function adminGetBookings(date?: string): Promise<Booking[]> {
   const query = date ? `?date=${encodeURIComponent(date)}` : "";
   const response = await adminRequest("GET", `/api/admin/bookings${query}`);

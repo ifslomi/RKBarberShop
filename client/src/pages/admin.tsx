@@ -35,6 +35,7 @@ import {
   adminCreateBarber,
   adminDeleteBarber,
   adminUpdateBookingStatus,
+  adminRescheduleBooking,
   adminDeleteBooking,
   adminUpdateQueueItem,
   adminRemoveFromQueue,
@@ -456,12 +457,13 @@ function BarberDialog({
 // Booking Details Dialog
 // ─────────────────────────────────────────────────────────
 function BookingDetailsDialog({
-  booking, displayPrice, onOpenChange, onStatusChange, onDelete,
+  booking, displayPrice, onOpenChange, onStatusChange, onReschedule, onDelete,
 }: {
   booking: Booking | null;
   displayPrice: number;
   onOpenChange: (v: boolean) => void;
   onStatusChange: (id: string, status: "confirmed" | "cancelled" | "completed") => void;
+  onReschedule: (booking: Booking) => void;
   onDelete: (b: Booking) => void;
 }) {
   if (!booking) return null;
@@ -553,6 +555,11 @@ function BookingDetailsDialog({
             {booking.status === "pending" && (
               <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white h-9 text-xs gap-1.5 flex-1" onClick={() => { onStatusChange(booking.id, "confirmed"); onOpenChange(false); }}>
                 <CheckCircle className="w-3.5 h-3.5" /> Confirm
+              </Button>
+            )}
+            {(booking.status === "pending" || booking.status === "confirmed") && (
+              <Button size="sm" variant="outline" className="text-primary border-primary/40 hover:bg-primary/10 h-9 text-xs gap-1.5 flex-1" onClick={() => { onReschedule(booking); onOpenChange(false); }}>
+                <Calendar className="w-3.5 h-3.5" /> Reschedule
               </Button>
             )}
             {(booking.status === "pending" || booking.status === "confirmed") && (
@@ -777,6 +784,10 @@ export default function Admin() {
   const [deleteTarget, setDeleteTarget] = useState<{ type: "barber" | "service" | "booking"; id: string; name: string } | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [viewBooking, setViewBooking] = useState<Booking | null>(null);
+  const [rescheduleTarget, setRescheduleTarget] = useState<Booking | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("09:00");
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
 
   // Booking filters
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -878,6 +889,30 @@ export default function Admin() {
     }
   };
 
+  const openRescheduleDialog = (booking: Booking) => {
+    setRescheduleTarget(booking);
+    setRescheduleDate(booking.date || format(new Date(), "yyyy-MM-dd"));
+    setRescheduleTime(booking.time ? to24Hour(booking.time) : "09:00");
+  };
+
+  const handleRescheduleBooking = async () => {
+    if (!rescheduleTarget || !rescheduleDate || !rescheduleTime) return;
+    setRescheduleSaving(true);
+    try {
+      await adminRescheduleBooking(rescheduleTarget.id, {
+        date: rescheduleDate,
+        time: to12Hour(rescheduleTime),
+      });
+      toast({ title: "Booking rescheduled" });
+      setRescheduleTarget(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to reschedule booking";
+      toast({ title: message, variant: "destructive" });
+    } finally {
+      setRescheduleSaving(false);
+    }
+  };
+
   const resetChangePasswordForm = () => {
     setOldPassword("");
     setNewPassword("");
@@ -959,8 +994,37 @@ export default function Admin() {
         displayPrice={viewBooking ? getBookingDisplayPrice(viewBooking) : 0}
         onOpenChange={(v) => { if (!v) setViewBooking(null); }}
         onStatusChange={handleBookingStatus}
+        onReschedule={openRescheduleDialog}
         onDelete={(b) => setDeleteTarget({ type: "booking", id: b.id, name: `${b.customerName}'s booking` })}
       />
+
+      <Dialog open={!!rescheduleTarget} onOpenChange={(v) => { if (!v) setRescheduleTarget(null); }}>
+        <DialogContent className="sm:max-w-sm bg-card border-border/50">
+          <DialogHeader>
+            <DialogTitle>Reschedule Booking</DialogTitle>
+            <DialogDescription>
+              {rescheduleTarget ? `${rescheduleTarget.customerName} with ${rescheduleTarget.barberName}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1.5">
+              <Label>Date</Label>
+              <Input type="date" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} className="bg-input/50" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Time</Label>
+              <Input type="time" value={rescheduleTime} onChange={(e) => setRescheduleTime(e.target.value)} className="bg-input/50" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setRescheduleTarget(null)} disabled={rescheduleSaving}>Cancel</Button>
+            <Button type="button" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleRescheduleBooking} disabled={rescheduleSaving || !rescheduleDate || !rescheduleTime}>
+              {rescheduleSaving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ServiceDialog
         open={editService !== null}
@@ -1583,6 +1647,7 @@ export default function Admin() {
                           <ContextMenuContent className="w-48">
                             <ContextMenuItem onClick={() => setViewBooking(b)}><Eye className="w-4 h-4 mr-2" /> View Details</ContextMenuItem>
                             {b.status === "pending" && <ContextMenuItem className="text-emerald-500 focus:text-emerald-500" onClick={() => handleBookingStatus(b.id, "confirmed")}><CheckCircle className="w-4 h-4 mr-2" /> Confirm</ContextMenuItem>}
+                            {(b.status === "pending" || b.status === "confirmed") && <ContextMenuItem className="text-primary focus:text-primary" onClick={() => openRescheduleDialog(b)}><Calendar className="w-4 h-4 mr-2" /> Reschedule</ContextMenuItem>}
                             {(b.status === "confirmed" || b.status === "pending") && <ContextMenuItem className="text-blue-500 focus:text-blue-500" onClick={() => handleBookingStatus(b.id, "completed")}><UserCheck className="w-4 h-4 mr-2" /> Mark Complete</ContextMenuItem>}
                             {b.status !== "cancelled" && b.status !== "completed" && <ContextMenuItem className="text-amber-500 focus:text-amber-500" onClick={() => handleBookingStatus(b.id, "cancelled")}><X className="w-4 h-4 mr-2" /> Cancel</ContextMenuItem>}
                             <ContextMenuSeparator />

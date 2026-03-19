@@ -171,19 +171,188 @@ export function decisionToStatus(decision: CustomerDecision): BookingRecord["sta
 }
 
 export function actionResultHtml(title: string, message: string, ok = true): string {
-  const color = ok ? "#16a34a" : "#dc2626";
+  return actionResultWithBackHtml({ title, message, ok });
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export function bookingActionPageHtml(params: {
+  title: string;
+  subtitle?: string;
+  bodyHtml: string;
+  baseUrl: string;
+}): string {
+  const subtitle = params.subtitle ? `<p class="subtitle">${escapeHtml(params.subtitle)}</p>` : "";
   return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${title}</title>
+  <title>${escapeHtml(params.title)}</title>
+  <style>
+    :root {
+      --bg: #08090c;
+      --card: rgba(18, 20, 26, 0.9);
+      --text: #e6e8ef;
+      --muted: #9aa3b2;
+      --gold: #d8a615;
+      --line: rgba(216, 166, 21, 0.25);
+      --ok: #2fb86e;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 500px at 10% -20%, rgba(216,166,21,.20), transparent 60%),
+        radial-gradient(900px 500px at 100% 0%, rgba(55,65,81,.24), transparent 60%),
+        var(--bg);
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+    .card {
+      width: 100%;
+      max-width: 760px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      box-shadow: 0 24px 80px rgba(0,0,0,.45);
+      overflow: hidden;
+      backdrop-filter: blur(8px);
+    }
+    .topline {
+      height: 4px;
+      width: 100%;
+      background: linear-gradient(90deg, var(--gold), rgba(216,166,21,.25));
+    }
+    .inner { padding: 24px; }
+    .brand { font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+    h1 { margin: 8px 0 8px; font-size: 30px; line-height: 1.15; }
+    .subtitle { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+    .actions { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.18);
+      color: var(--text);
+      text-decoration: none;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      background: rgba(255,255,255,.05);
+    }
+    .btn-primary { background: var(--gold); border-color: var(--gold); color: #131313; }
+    .panel {
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      background: rgba(255,255,255,.03);
+      padding: 16px;
+    }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; color: var(--muted); margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .input {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 10px;
+      background: rgba(8,9,12,.75);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+    .muted { color: var(--muted); font-size: 13px; }
+    .ok { color: var(--ok); }
+    .danger { color: var(--danger); }
+  </style>
 </head>
-<body style="margin:0;background:#0b0f17;color:#e2e8f0;font-family:Arial,sans-serif;display:grid;place-items:center;min-height:100vh;padding:20px;">
-  <div style="max-width:560px;width:100%;background:#111827;border:1px solid #1f2937;border-radius:14px;padding:22px;">
-    <h1 style="margin:0 0 10px;font-size:22px;color:${color}">${title}</h1>
-    <p style="margin:0;color:#cbd5e1;line-height:1.5">${message}</p>
+<body>
+  <div class="card">
+    <div class="topline"></div>
+    <div class="inner">
+      <div class="brand">RK Barbershop</div>
+      <h1>${escapeHtml(params.title)}</h1>
+      ${subtitle}
+      ${params.bodyHtml}
+      <div class="actions">
+        <a class="btn" href="${params.baseUrl}">Back to Homepage</a>
+      </div>
+    </div>
   </div>
 </body>
 </html>`;
+}
+
+export function actionResultWithBackHtml(params: {
+  title: string;
+  message: string;
+  ok?: boolean;
+  baseUrl?: string;
+}): string {
+  const ok = params.ok !== false;
+  const bodyHtml = `<div class="panel"><p class="${ok ? "ok" : "danger"}" style="margin:0;font-weight:700">${escapeHtml(params.message)}</p></div>`;
+  return bookingActionPageHtml({
+    title: params.title,
+    subtitle: "Booking action result",
+    bodyHtml,
+    baseUrl: params.baseUrl || "/",
+  });
+}
+
+export function rescheduleFormHtml(params: {
+  baseUrl: string;
+  token: string;
+  bookingId: string;
+  currentDate: string;
+  currentTime: string;
+  minDate: string;
+  maxDate: string;
+  defaultTime24: string;
+  availabilityText: string;
+}): string {
+  const bodyHtml = `
+    <div class="panel" style="margin-bottom:12px">
+      <p style="margin:0 0 8px;font-weight:700">Current schedule</p>
+      <p class="muted" style="margin:0">${escapeHtml(params.currentDate)} ${escapeHtml(params.currentTime || "")}</p>
+      <p class="muted" style="margin:10px 0 0">${escapeHtml(params.availabilityText)}</p>
+    </div>
+
+    <form method="POST" action="${params.baseUrl}/api/bookings/action">
+      <input type="hidden" name="token" value="${escapeHtml(params.token)}" />
+      <input type="hidden" name="action" value="reschedule" />
+      <input type="hidden" name="bookingId" value="${escapeHtml(params.bookingId)}" />
+
+      <div class="field">
+        <label for="date">New Date</label>
+        <input class="input" id="date" name="date" type="date" required min="${escapeHtml(params.minDate)}" max="${escapeHtml(params.maxDate)}" value="${escapeHtml(params.currentDate)}" />
+      </div>
+      <div class="field">
+        <label for="time">New Time</label>
+        <input class="input" id="time" name="time" type="time" required value="${escapeHtml(params.defaultTime24)}" />
+      </div>
+
+      <div class="actions" style="margin-top:6px">
+        <button class="btn btn-primary" type="submit">Update Booking</button>
+        <a class="btn" href="${params.baseUrl}">Cancel</a>
+      </div>
+    </form>
+  `;
+
+  return bookingActionPageHtml({
+    title: "Reschedule Booking",
+    subtitle: "Choose a new schedule based on barber availability",
+    bodyHtml,
+    baseUrl: params.baseUrl,
+  });
 }

@@ -162,6 +162,16 @@ const bookingStatusSchema = z.object({
   status: z.enum(["pending", "confirmed", "cancelled", "completed"]),
 });
 
+const bookingPatchSchema = z
+  .object({
+    status: z.enum(["pending", "confirmed", "cancelled", "completed"]).optional(),
+    date: z.string().optional(),
+    time: z.string().optional(),
+  })
+  .refine((payload) => Object.keys(payload).length > 0, {
+    message: "At least one booking field must be provided",
+  });
+
 const bookingsQuerySchema = z.object({
   date: z.string().optional(),
 });
@@ -590,7 +600,7 @@ export async function registerRoutes(
   app.patch("/api/admin/bookings/:id", requireAdmin, async (req, res, next) => {
     try {
       const id = String(req.params.id);
-      const parsed = bookingStatusSchema.safeParse(req.body);
+      const parsed = bookingPatchSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid booking payload", issues: parsed.error.issues });
       }
@@ -607,8 +617,17 @@ export async function registerRoutes(
         }
       }
 
-      await adminDb.collection("bookings").doc(id).set(parsed.data, { merge: true });
-      return res.status(200).json({ id, ...parsed.data });
+      const updates: Record<string, unknown> = { ...parsed.data };
+      if (parsed.data.date || parsed.data.time) {
+        updates.status = "confirmed";
+        updates.customerDecision = "accepted";
+        updates.customerDecisionAt = new Date().toISOString();
+        updates.customerActionRequired = false;
+        updates.rescheduledAt = new Date().toISOString();
+      }
+
+      await adminDb.collection("bookings").doc(id).set(updates, { merge: true });
+      return res.status(200).json({ id, ...updates });
     } catch (error) {
       return next(error);
     }
