@@ -47,7 +47,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const doc = snap.docs[0];
-    const booking = { id: doc.id, ...(doc.data() as Record<string, any>) };
+    const booking = doc.data() as Record<string, any>;
 
     if (booking.type !== "reservation") {
       res.status(400).setHeader("Content-Type", "text/html; charset=utf-8").send(
