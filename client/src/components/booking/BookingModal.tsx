@@ -11,7 +11,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import type { Barber, Service } from "@/lib/types";
-import { createBooking, addToQueue, getQueue } from "@/lib/firestore";
+import { addToQueue, getQueue } from "@/lib/firestore";
+import { createPublicBooking } from "@/lib/bookingApi";
 import { useBarbers, useServices, useQueue, useSettings } from "@/hooks/useFirestore";
 import { format } from "date-fns";
 import {
@@ -169,7 +170,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
           ? format(date, "yyyy-MM-dd")
           : format(new Date(), "yyyy-MM-dd");
 
-      await createBooking({
+      const bookingResult = await createPublicBooking({
         barberId: selectedBarber.id,
         barberName: selectedBarber.name,
         serviceId: selectedServices[0]?.id || "",
@@ -207,9 +208,13 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
         title: "Booking Submitted!",
         description:
           type === "reservation"
-            ? hasPayablePrice
-              ? `Waiting for admin confirmation. Send ₱${totalPrice} via GCash ${gcashNumber} to proceed.`
-              : "Waiting for admin confirmation."
+            ? bookingResult.emailSent
+              ? hasPayablePrice
+                ? `Check your email to confirm your booking. Then send ₱${totalPrice} via GCash ${gcashNumber}.`
+                : "Check your email to confirm your booking."
+              : hasPayablePrice
+                ? `Reservation saved, but email was not sent (${bookingResult.emailReason || "SMTP not configured"}). Send ₱${totalPrice} via GCash ${gcashNumber}.`
+                : `Reservation saved, but email was not sent (${bookingResult.emailReason || "SMTP not configured"}).`
             : `You've been added to ${selectedBarber.name}'s queue.`,
       });
       handleClose();

@@ -51,6 +51,13 @@ export interface Booking {
   type: "reservation" | "walkin";
   status: "pending" | "confirmed" | "cancelled" | "completed";
   price: number;
+  customerDecision?: "awaiting" | "accepted" | "cancelled" | "reschedule_requested" | "expired";
+  customerActionRequired?: boolean;
+  customerActionDeadline?: string;
+  customerDecisionAt?: string;
+  autoCancelledAt?: string;
+  emailNotificationSent?: boolean;
+  emailNotificationError?: string;
   createdAt: string;
 }
 

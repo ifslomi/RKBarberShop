@@ -521,6 +521,12 @@ function BookingDetailsDialog({
           <div className="bg-muted/20 border border-border/30 rounded-2xl divide-y divide-border/20 overflow-hidden">
             {[
               { label: "Service(s)", value: booking.serviceName || "—" },
+              {
+                label: "Customer Confirmation",
+                value: booking.type === "reservation"
+                  ? (booking.customerDecision || "awaiting")
+                  : "not required",
+              },
               ...(booking.date ? [{ label: "Date & Time", value: `${booking.date}${booking.time ? ` · ${booking.time}` : ""}` }] : []),
               { label: "Booking ID", value: `#${booking.id.slice(-6).toUpperCase()}` },
             ].map(({ label, value }) => (
@@ -831,8 +837,13 @@ export default function Admin() {
   };
 
   const handleBookingStatus = async (id: string, status: "confirmed" | "cancelled" | "completed") => {
-    await adminUpdateBookingStatus(id, status);
-    toast({ title: `Booking marked as ${status}` });
+    try {
+      await adminUpdateBookingStatus(id, status);
+      toast({ title: `Booking marked as ${status}` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update booking status";
+      toast({ title: message, variant: "destructive" });
+    }
   };
 
   const handleConfirmAllPending = async () => {

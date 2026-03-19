@@ -3,6 +3,9 @@
   "outputDirectory": "dist/public",
   "installCommand": "npm install",
   "framework": "vite",
+  "crons": [
+    { "path": "/api/cron/expire-bookings", "schedule": "*/10 * * * *" }
+  ],
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]

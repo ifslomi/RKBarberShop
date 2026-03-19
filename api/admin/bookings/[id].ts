@@ -66,6 +66,17 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
+      if (status === "confirmed") {
+        const bookingDoc = await adminDb.collection("bookings").doc(id).get();
+        const booking = bookingDoc.exists ? (bookingDoc.data() as Record<string, unknown>) : null;
+        const isReservation = String(booking?.type || "") === "reservation";
+        const customerDecision = String(booking?.customerDecision || "awaiting");
+        if (isReservation && customerDecision !== "accepted") {
+          res.status(409).json({ message: "Customer must confirm via email action before admin confirmation" });
+          return;
+        }
+      }
+
       await adminDb.collection("bookings").doc(id).set({ status }, { merge: true });
       res.status(200).json({ id, status });
       return;
