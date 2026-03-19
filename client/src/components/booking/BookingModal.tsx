@@ -112,8 +112,11 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
 
   const activeBarbers = barbers.filter((b) => b.active);
   const activeServices = services.filter((s) => s.active);
-  const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
-  const hasPricedServices = selectedServices.some((s) => !s.noPrice && s.price > 0);
+  const totalPrice = selectedBarber
+    ? (type === "reservation" ? selectedBarber.reservePrice : selectedBarber.walkinPrice)
+    : 0;
+  const hasPayablePrice = totalPrice > 0;
+  const priceLabel = type === "reservation" ? "Reservation Price" : "Walk-in Price";
 
   const resetForm = () => {
     setStep(1);
@@ -204,7 +207,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
         title: "Booking Submitted!",
         description:
           type === "reservation"
-            ? hasPricedServices
+            ? hasPayablePrice
               ? `Waiting for admin confirmation. Send ₱${totalPrice} via GCash ${gcashNumber} to proceed.`
               : "Waiting for admin confirmation."
             : `You've been added to ${selectedBarber.name}'s queue.`,
@@ -333,10 +336,17 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                   <p className="text-sm text-muted-foreground">
                     {type === "walkin" ? "Choose your barber — only available barbers are selectable" : "Choose your barber"}
                   </p>
+                  {selectedBarber && (
+                    <div className="rounded-xl border border-primary/25 bg-primary/5 px-3 py-2 text-xs flex items-center justify-between">
+                      <span className="text-muted-foreground">Selected {priceLabel}</span>
+                      <span className="font-bold text-primary">₱{totalPrice}</span>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     {activeBarbers.map((barber) => {
                       const availableNow = type !== "walkin" || isBarberAvailableNow(barber);
                       const isSelected = selectedBarber?.id === barber.id;
+                      const barberPrice = type === "reservation" ? barber.reservePrice : barber.walkinPrice;
                       return (
                         <button
                           key={barber.id}
@@ -368,6 +378,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                             {barber.specialty && (
                               <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{barber.specialty}</p>
                             )}
+                            <p className="text-xs mt-1 font-semibold text-primary">{priceLabel}: ₱{barberPrice}</p>
                             <p className="text-xs text-muted-foreground/70 mt-1">
                               {(barber.availableDays || DAY_NAMES.slice(1)).map((d) => d.slice(0, 2)).join(" · ")}
                             </p>
@@ -414,7 +425,6 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                               <p className="text-xs text-muted-foreground truncate">{service.description}</p>
                             )}
                           </div>
-                          {!service.noPrice && service.price > 0 && <span className="font-bold text-primary shrink-0">₱{service.price}</span>}
                         </button>
                       );
                     })}
@@ -424,7 +434,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                       <span className="text-muted-foreground">
                         {selectedServices.length} service{selectedServices.length > 1 ? "s" : ""}
                       </span>
-                      {hasPricedServices && <span className="font-bold text-primary">₱{totalPrice}</span>}
+                      {hasPayablePrice && <span className="font-bold text-primary">₱{totalPrice}</span>}
                     </div>
                   )}
                   <div className="space-y-1.5">
@@ -532,16 +542,24 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                   {type === "reservation" ? (
                     <>
                       <p className="text-sm font-semibold">Our Booking Policy</p>
-                      <div className="bg-muted/30 border border-border/50 rounded-2xl p-4 space-y-3 text-sm leading-relaxed max-h-56 overflow-y-auto">
+                      <div className="bg-muted/30 border border-border/50 rounded-2xl p-4 space-y-2.5 text-sm leading-relaxed max-h-56 overflow-y-auto">
                         {settings?.reservationPolicyText ? (
-                          <p className="text-muted-foreground whitespace-pre-line">{settings.reservationPolicyText}</p>
+                          <>
+                            <p className="text-muted-foreground whitespace-pre-line">{settings.reservationPolicyText}</p>
+                            <div className="border-t border-border/30 pt-2.5">
+                              <p className="font-semibold mb-1">Cancellation Policy</p>
+                              <p className="text-muted-foreground">
+                                You can cancel or reschedule up to <span className="font-semibold text-foreground">1 hour</span> before the appointment time.
+                              </p>
+                            </div>
+                          </>
                         ) : (
                           <>
                             <p className="text-muted-foreground">
                               After scheduling an appointment, kindly wait for confirmation.
                             </p>
-                            <div className="border-t border-border/30 pt-3">
-                              {hasPricedServices && (
+                            {hasPayablePrice && (
+                              <div className="border-t border-border/30 pt-2.5">
                                 <>
                                   <p className="font-semibold text-amber-500 mb-1">Down Payment Required</p>
                                   <p className="text-muted-foreground">
@@ -552,14 +570,14 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                                     <p className="text-xs text-amber-600 font-medium">GCash: {gcashNumber}</p>
                                   </div>
                                 </>
-                              )}
-                            </div>
-                            {hasPricedServices && (
-                              <div className="border-t border-border/30 pt-3">
+                              </div>
+                            )}
+                            {hasPayablePrice && (
+                              <div className="border-t border-border/30 pt-2.5">
                                 <p className="font-semibold">No reservation fee = No confirmed booking</p>
                               </div>
                             )}
-                            <div className="border-t border-border/30 pt-3">
+                            <div className="border-t border-border/30 pt-2.5">
                               <p className="font-semibold mb-1">Cancellation Policy</p>
                               <p className="text-muted-foreground">
                                 You can cancel or reschedule up to <span className="font-semibold text-foreground">1 hour</span> before the appointment time.
@@ -568,8 +586,8 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                           </>
                         )}
                         {/* Show the GCash payment block only when selected services have a payable amount */}
-                        {settings?.reservationPolicyText && hasPricedServices && (
-                          <div className="border-t border-border/30 pt-3">
+                        {settings?.reservationPolicyText && hasPayablePrice && (
+                          <div className="border-t border-border/30 pt-2.5">
                             <p className="font-semibold text-amber-500 mb-1">Down Payment: ₱{totalPrice}</p>
                             <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                               <p className="text-xs text-amber-600 font-medium">GCash: {gcashNumber}</p>
@@ -585,7 +603,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                           className="mt-0.5 w-4 h-4 accent-primary"
                         />
                         <span className="text-sm text-muted-foreground leading-snug">
-                          {hasPricedServices
+                          {hasPayablePrice
                             ? `I have read and agree to the booking policy, including the non-refundable ₱${totalPrice} down payment.`
                             : "I have read and agree to the booking policy."}
                         </span>
@@ -676,6 +694,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                     {[
                       { label: "Type", value: type === "walkin" ? "Walk-in Queue" : "Reservation" },
                       { label: "Barber", value: selectedBarber?.name },
+                      { label: priceLabel, value: `₱${totalPrice}` },
                       { label: "Service(s)", value: selectedServices.map((s) => s.name).join(", ") },
                       { label: "Customer", value: name },
                       { label: "Phone", value: phone },
@@ -700,14 +719,14 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                         </div>
                       </div>
                     )}
-                    {hasPricedServices && (
+                    {hasPayablePrice && (
                       <div className="flex justify-between items-center pt-1.5 text-base border-t border-border/50 mt-1">
                         <span className="font-semibold">Total</span>
                         <span className="font-bold text-primary text-xl">₱{totalPrice}</span>
                       </div>
                     )}
                   </div>
-                  {type === "reservation" && hasPricedServices && (
+                  {type === "reservation" && hasPayablePrice && (
                     <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2 text-sm">
                       <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                       <p className="text-amber-600">

@@ -456,9 +456,10 @@ function BarberDialog({
 // Booking Details Dialog
 // ─────────────────────────────────────────────────────────
 function BookingDetailsDialog({
-  booking, onOpenChange, onStatusChange, onDelete,
+  booking, displayPrice, onOpenChange, onStatusChange, onDelete,
 }: {
   booking: Booking | null;
+  displayPrice: number;
   onOpenChange: (v: boolean) => void;
   onStatusChange: (id: string, status: "confirmed" | "cancelled" | "completed") => void;
   onDelete: (b: Booking) => void;
@@ -512,7 +513,7 @@ function BookingDetailsDialog({
             </div>
             <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 text-center">
               <p className="text-xs text-muted-foreground mb-1">Total</p>
-              <p className="text-sm font-black text-primary">₱{booking.price}</p>
+              <p className="text-sm font-black text-primary">₱{displayPrice}</p>
             </div>
           </div>
 
@@ -806,6 +807,12 @@ export default function Admin() {
   const todayWalkins = todayBookings.filter((b) => b.type === "walkin");
   const activeQueue = queue.filter((q) => q.status !== "done");
   const activeBarbers = barbers.filter((b) => b.active);
+  const getBookingDisplayPrice = (booking: Booking): number => {
+    if (Number(booking.price) > 0) return Number(booking.price);
+    const barber = barbers.find((b) => b.id === booking.barberId);
+    if (!barber) return Number(booking.price) || 0;
+    return booking.type === "reservation" ? barber.reservePrice : barber.walkinPrice;
+  };
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const upcomingBookings = allBookings
     .filter((b) => b.date >= todayStr && b.status !== "cancelled" && b.status !== "completed")
@@ -938,6 +945,7 @@ export default function Admin() {
 
       <BookingDetailsDialog
         booking={viewBooking}
+        displayPrice={viewBooking ? getBookingDisplayPrice(viewBooking) : 0}
         onOpenChange={(v) => { if (!v) setViewBooking(null); }}
         onStatusChange={handleBookingStatus}
         onDelete={(b) => setDeleteTarget({ type: "booking", id: b.id, name: `${b.customerName}'s booking` })}
@@ -1539,7 +1547,7 @@ export default function Admin() {
                               <TableCell>{(b as any).serviceName || "—"}</TableCell>
                               <TableCell>{b.date}{b.time ? ` ${b.time}` : ""}</TableCell>
                               <TableCell><Badge variant={b.type === "reservation" ? "default" : "secondary"} className="text-xs">{b.type}</Badge></TableCell>
-                              <TableCell className="font-semibold">₱{b.price}</TableCell>
+                              <TableCell className="font-semibold">₱{getBookingDisplayPrice(b)}</TableCell>
                               <TableCell>
                                 <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", {
                                   "bg-emerald-500/10 text-emerald-500": b.status === "confirmed",
