@@ -156,10 +156,9 @@ export function Navbar({ onBookClick, onServicesClick }: NavbarProps = {}) {
                     <div className="min-w-0">
                       <p className="font-semibold text-sm truncate">{service.name}</p>
                       {service.description && <p className="text-xs text-muted-foreground truncate">{service.description}</p>}
-                      <p className="text-xs text-muted-foreground/70">{service.duration} mins</p>
                     </div>
                   </div>
-                  <span className="font-bold text-primary shrink-0">₱{service.price}</span>
+                  {!service.noPrice && service.price > 0 && <span className="font-bold text-primary shrink-0">₱{service.price}</span>}
                 </div>
               ))}
             </div>

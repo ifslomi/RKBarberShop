@@ -25,7 +25,8 @@ export default function Home() {
 
   const activeBarbers = barbers.filter((b) => b.active);
   const activeServices = services.filter((s) => s.active);
-  const lowestPrice = activeServices.length > 0 ? Math.min(...activeServices.map((s) => s.price)) : 80;
+  const pricedServices = activeServices.filter((s) => !s.noPrice);
+  const lowestPrice = pricedServices.length > 0 ? Math.min(...pricedServices.map((s) => s.price)) : 80;
   const shopName = settings?.shopName || "RK Barbershop";
   const aboutText =
     settings?.aboutText ||
@@ -68,10 +69,9 @@ export default function Home() {
                       <div className="min-w-0">
                         <p className="font-semibold text-sm truncate">{service.name}</p>
                         {service.description && <p className="text-xs text-muted-foreground truncate">{service.description}</p>}
-                        <p className="text-xs text-muted-foreground/70">{service.duration} mins</p>
                       </div>
                     </div>
-                    <span className="font-bold text-primary shrink-0">₱{service.price}</span>
+                    {!service.noPrice && service.price > 0 && <span className="font-bold text-primary shrink-0">₱{service.price}</span>}
                   </div>
                 ))}
               </div>

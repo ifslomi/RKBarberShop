@@ -113,7 +113,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
   const activeBarbers = barbers.filter((b) => b.active);
   const activeServices = services.filter((s) => s.active);
   const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
-  const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration, 0);
+  const hasPricedServices = selectedServices.some((s) => !s.noPrice && s.price > 0);
 
   const resetForm = () => {
     setStep(1);
@@ -204,7 +204,9 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
         title: "Booking Submitted!",
         description:
           type === "reservation"
-            ? `Waiting for admin confirmation. Send ₱${totalPrice} via GCash ${gcashNumber} to proceed.`
+            ? hasPricedServices
+              ? `Waiting for admin confirmation. Send ₱${totalPrice} via GCash ${gcashNumber} to proceed.`
+              : "Waiting for admin confirmation."
             : `You've been added to ${selectedBarber.name}'s queue.`,
       });
       handleClose();
@@ -411,9 +413,8 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                             {service.description && (
                               <p className="text-xs text-muted-foreground truncate">{service.description}</p>
                             )}
-                            <p className="text-xs text-muted-foreground">{service.duration} mins</p>
                           </div>
-                          <span className="font-bold text-primary shrink-0">₱{service.price}</span>
+                          {!service.noPrice && service.price > 0 && <span className="font-bold text-primary shrink-0">₱{service.price}</span>}
                         </button>
                       );
                     })}
@@ -421,9 +422,9 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                   {selectedServices.length > 0 && (
                     <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex justify-between text-sm">
                       <span className="text-muted-foreground">
-                        {selectedServices.length} service{selectedServices.length > 1 ? "s" : ""} · {totalDuration} mins total
+                        {selectedServices.length} service{selectedServices.length > 1 ? "s" : ""}
                       </span>
-                      <span className="font-bold text-primary">₱{totalPrice}</span>
+                      {hasPricedServices && <span className="font-bold text-primary">₱{totalPrice}</span>}
                     </div>
                   )}
                   <div className="space-y-1.5">
@@ -540,18 +541,24 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                               After scheduling an appointment, kindly wait for confirmation.
                             </p>
                             <div className="border-t border-border/30 pt-3">
-                              <p className="font-semibold text-amber-500 mb-1">Down Payment Required</p>
-                              <p className="text-muted-foreground">
-                                To secure your slot, a <span className="font-semibold text-foreground">₱{totalPrice}</span> down payment is required as a reservation fee.
-                              </p>
-                              <p className="text-red-400 font-semibold mt-1">NON-REFUNDABLE</p>
-                              <div className="mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                                <p className="text-xs text-amber-600 font-medium">GCash: {gcashNumber}</p>
+                              {hasPricedServices && (
+                                <>
+                                  <p className="font-semibold text-amber-500 mb-1">Down Payment Required</p>
+                                  <p className="text-muted-foreground">
+                                    To secure your slot, a <span className="font-semibold text-foreground">₱{totalPrice}</span> down payment is required as a reservation fee.
+                                  </p>
+                                  <p className="text-red-400 font-semibold mt-1">NON-REFUNDABLE</p>
+                                  <div className="mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                                    <p className="text-xs text-amber-600 font-medium">GCash: {gcashNumber}</p>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                            {hasPricedServices && (
+                              <div className="border-t border-border/30 pt-3">
+                                <p className="font-semibold">No reservation fee = No confirmed booking</p>
                               </div>
-                            </div>
-                            <div className="border-t border-border/30 pt-3">
-                              <p className="font-semibold">No reservation fee = No confirmed booking</p>
-                            </div>
+                            )}
                             <div className="border-t border-border/30 pt-3">
                               <p className="font-semibold mb-1">Cancellation Policy</p>
                               <p className="text-muted-foreground">
@@ -560,8 +567,8 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                             </div>
                           </>
                         )}
-                        {/* Always show the GCash payment block */}
-                        {settings?.reservationPolicyText && (
+                        {/* Show the GCash payment block only when selected services have a payable amount */}
+                        {settings?.reservationPolicyText && hasPricedServices && (
                           <div className="border-t border-border/30 pt-3">
                             <p className="font-semibold text-amber-500 mb-1">Down Payment: ₱{totalPrice}</p>
                             <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
@@ -578,7 +585,9 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                           className="mt-0.5 w-4 h-4 accent-primary"
                         />
                         <span className="text-sm text-muted-foreground leading-snug">
-                        I have read and agree to the booking policy, including the non-refundable ₱{totalPrice} down payment.
+                          {hasPricedServices
+                            ? `I have read and agree to the booking policy, including the non-refundable ₱${totalPrice} down payment.`
+                            : "I have read and agree to the booking policy."}
                         </span>
                       </label>
                     </>
@@ -691,12 +700,14 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                         </div>
                       </div>
                     )}
-                    <div className="flex justify-between items-center pt-1.5 text-base border-t border-border/50 mt-1">
-                      <span className="font-semibold">Total</span>
-                      <span className="font-bold text-primary text-xl">₱{totalPrice}</span>
-                    </div>
+                    {hasPricedServices && (
+                      <div className="flex justify-between items-center pt-1.5 text-base border-t border-border/50 mt-1">
+                        <span className="font-semibold">Total</span>
+                        <span className="font-bold text-primary text-xl">₱{totalPrice}</span>
+                      </div>
+                    )}
                   </div>
-                  {type === "reservation" && (
+                  {type === "reservation" && hasPricedServices && (
                     <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2 text-sm">
                       <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                       <p className="text-amber-600">

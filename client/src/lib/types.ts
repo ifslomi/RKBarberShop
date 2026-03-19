@@ -10,6 +10,7 @@ export interface Service {
   name: string;
   description: string;
   price: number;
+  noPrice?: boolean;
   duration: number; // minutes
   active: boolean;
   order: number;

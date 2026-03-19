@@ -8,6 +8,7 @@ import {
   Edit2, Scissors, Clock, Eye, EyeOff, AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AmbientPageBackground } from "@/components/layout/AmbientPageBackground";
@@ -94,7 +95,7 @@ function ServiceDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
-  const [duration, setDuration] = useState("30");
+  const [noPrice, setNoPrice] = useState(false);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   const isEdit = !!service;
@@ -104,19 +105,21 @@ function ServiceDialog({
     if (open) {
       setName(service?.name || "");
       setDescription(service?.description || "");
-      setPrice(String(service?.price || ""));
-      setDuration(String(service?.duration || "30"));
+      const serviceHasNoPrice = Boolean(service?.noPrice) || Number(service?.price || 0) <= 0;
+      setNoPrice(serviceHasNoPrice);
+      setPrice(serviceHasNoPrice ? "" : String(service?.price || ""));
     }
   }, [open, service]);
 
   const handleSave = async () => {
-    if (!name || !price) return;
+    if (!name || (!noPrice && !price)) return;
     setSaving(true);
     try {
       const data = {
         name, description,
-        price: Number(price),
-        duration: Number(duration),
+        price: noPrice ? 0 : Number(price),
+        noPrice,
+        duration: service?.duration ?? 30,
         active: service?.active ?? true,
         order: service?.order ?? Date.now(),
         createdAt: service?.createdAt || new Date().toISOString(),
@@ -154,20 +157,39 @@ function ServiceDialog({
             <Label>Description</Label>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief description..." className="bg-input/50" />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Price (₱) *</Label>
-              <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="150" className="bg-input/50" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Duration (mins)</Label>
-              <Input type="number" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="30" className="bg-input/50" />
-            </div>
+          <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label>Price (₱){noPrice ? "" : " *"}</Label>
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                  <Checkbox
+                    checked={noPrice}
+                    onCheckedChange={(checked) => {
+                      const isNoPrice = checked === true;
+                      setNoPrice(isNoPrice);
+                      if (isNoPrice) setPrice("");
+                    }}
+                  />
+                  No price
+                </label>
+              </div>
+              <Input
+                type="number"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder={noPrice ? "Hidden" : "150"}
+                className="bg-input/50"
+                disabled={noPrice}
+              />
           </div>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-          <Button type="button" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleSave} disabled={saving || !name || !price}>
+          <Button
+            type="button"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={handleSave}
+            disabled={saving || !name || (!noPrice && !price)}
+          >
             {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
             {isEdit ? "Save Changes" : "Create Service"}
           </Button>
@@ -328,7 +350,7 @@ function BarberDialog({
                     />
                     <span className="flex-1 min-w-0">
                       <span className="block text-xs font-medium truncate">{svc.name}</span>
-                      <span className="text-xs text-muted-foreground">₱{svc.price}</span>
+                      {!svc.noPrice && svc.price > 0 && <span className="text-xs text-muted-foreground">₱{svc.price}</span>}
                     </span>
                   </label>
                 ))}
@@ -1274,12 +1296,9 @@ export default function Admin() {
                           </div>
                           <h3 className="font-bold mb-1">{s.name}</h3>
                           {s.description && <p className="text-xs text-muted-foreground mb-2">{s.description}</p>}
-                          <div className="flex items-center justify-between mt-3">
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Clock className="w-3.5 h-3.5" /> {s.duration} mins
-                            </div>
+                          <div className="flex items-center justify-end mt-3">
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-primary">₱{s.price}</span>
+                                {!s.noPrice && s.price > 0 && <span className="font-bold text-primary">₱{s.price}</span>}
                               <button
                                 type="button"
                                 onClick={async () => {
