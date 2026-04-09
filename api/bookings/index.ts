@@ -57,6 +57,12 @@ export default async function handler(req: any, res: any) {
     const barber = barberDoc.data() as Record<string, unknown>;
     const barberName = String(barber.name || payload.barberName || "").trim();
     const price = type === "reservation" ? Number(barber.reservePrice || 0) : Number(barber.walkinPrice || 0);
+    const paymentProofUrl = String(payload.paymentProofUrl || "").trim();
+
+    if (type === "reservation" && price > 0 && !paymentProofUrl) {
+      res.status(400).json({ message: "Reservation requires payment proof upload" });
+      return;
+    }
 
     const token = createActionToken();
     const tokenHash = hashActionToken(token);
@@ -73,6 +79,7 @@ export default async function handler(req: any, res: any) {
       phone,
       email,
       notes: String(payload.notes || ""),
+      paymentProofUrl,
       date,
       time: type === "reservation" ? time : "",
       type,

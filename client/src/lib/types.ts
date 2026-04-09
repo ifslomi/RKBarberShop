@@ -46,6 +46,7 @@ export interface Booking {
   phone: string;
   email?: string;
   notes: string;
+  paymentProofUrl?: string;
   date: string;
   time: string;
   type: "reservation" | "walkin";
@@ -88,6 +89,7 @@ export interface ShopSettings {
   aboutText: string;
   // Booking / payment settings
   gcashNumber?: string;
+  gcashQrCodeUrl?: string;
   reservationPolicyText?: string;
 }
 

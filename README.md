@@ -22,6 +22,8 @@ The project uses React on the client, Firebase Firestore as database, Firebase A
 - Choose barber
 - Choose one or more services
 - Enter personal details and notes
+- Upload payment proof image for reservations with payable amount
+- View and download official shop GCash QR directly inside booking modal (no redirect)
 - View booking summary before submit
 
 ### 2.2 Pricing Features
@@ -40,6 +42,7 @@ The project uses React on the client, Firebase Firestore as database, Firebase A
 ### 2.4 Booking Security and Confirmation Features
 - Reservation bookings are created through backend API, not direct client write
 - Server computes final booking price to prevent client tampering
+- Reservation with payable amount requires uploaded payment proof on server-side validation
 - Reservation sends customer action email with secure links:
   - Accept
   - Cancel
@@ -70,7 +73,10 @@ The project uses React on the client, Firebase Firestore as database, Firebase A
 - Booking management
 - Queue management
 - Shop settings management
+- Payment settings include GCash number + QR image upload
+- Uploaded QR is shown to customers in reservation flow
 - Booking detail dialog with customer confirmation state
+- Booking detail dialog includes payment proof preview/download
 - Booking reschedule action is available in admin booking details and booking context menu
 
 ### 2.7 Real-Time Features
@@ -100,6 +106,13 @@ The project uses React on the client, Firebase Firestore as database, Firebase A
 - Made admin bookings fully real time
 - Fixed TypeScript build issues in booking action API
 - Adjusted Vercel cron schedule for Hobby plan limits
+- Added QR and payment proof flow:
+  - Admin can upload and save official GCash QR image
+  - Customers can view/download QR in booking flow
+  - Customers upload payment proof before reservation confirmation
+- Added in-app image preview modals (admin + customer) instead of opening new pages
+- Added in-app secure download proxy endpoint for QR/proof files
+- Added free image upload provider support (ImgBB primary, fallback hosts)
 
 ---
 
@@ -146,10 +159,12 @@ The project uses React on the client, Firebase Firestore as database, Firebase A
 - Express server in server folder
 - Admin APIs with Firebase Admin SDK
 - Public booking APIs for secure reservation flow
+- Upload APIs for image hosting and secure in-app downloads
 
 ### 5.3 Backend (Vercel)
 - Serverless API functions in api folder
 - Same booking action and admin logic available for deployment
+- Serverless upload and download endpoints aligned with local behavior
 
 ### 5.4 Database
 - Firebase Firestore collections:
@@ -215,6 +230,7 @@ You can start from .env.example.
 - FIREBASE_PROJECT_ID
 - FIREBASE_CLIENT_EMAIL
 - FIREBASE_PRIVATE_KEY
+- IMGBB_API_KEY
 
 ### 8.3 Booking Security Variables
 - PUBLIC_BASE_URL
@@ -303,13 +319,21 @@ Cron note:
 ### 13.1 Public Booking Endpoints
 - POST /api/bookings
   - Create booking with secure server-side price calculation
+  - Enforces payment proof for payable reservations
 - GET /api/bookings/action?action=accept|cancel|reschedule&token=...
   - Customer booking action pages and result pages
   - For reschedule, GET serves form page and POST submits new schedule
 - GET /api/cron/expire-bookings
   - Auto-cancel unattended reservations past action window
 
-### 13.2 Admin Endpoints
+### 13.2 Upload Endpoints
+- POST /api/uploads/image
+  - Upload QR/proof image to free host provider
+  - Provider order: ImgBB (primary) then fallback hosts
+- GET /api/uploads/download?url=...&filename=...
+  - Secure in-app file download proxy (host allowlist enforced)
+
+### 13.3 Admin Endpoints
 - GET /api/admin/bookings
 - PATCH /api/admin/bookings/:id
   - supports status updates and admin reschedule updates (date/time)
@@ -363,26 +387,32 @@ Check:
 - BOOKING_FROM_EMAIL is verified in Brevo
 - Brevo sender/domain verification status
 
-### 16.3 Admin booking list not updating live
+### 16.3 Image upload failed
+Check:
+- IMGBB_API_KEY exists in local .env and deployment environment
+- Development server was restarted after env changes
+- Fallback provider/network access is available
+
+### 16.4 Admin booking list not updating live
 Check:
 - Firestore rules and connectivity
 - User is on updated build with snapshot-based bookings hooks
 
-### 16.6 Customer reschedule failed
+### 16.5 Customer reschedule failed
 Check:
 - Selected date is inside barber available days
 - Selected date is not listed in barber days off
 - Selected time is inside barber schedule window
 - Action link is used before one-hour cutoff
 
-### 16.4 Vercel cron error on Hobby
+### 16.6 Vercel cron error on Hobby
 Cause:
 - Non-daily cron schedule is not allowed on Hobby
 Fix:
 - Keep daily cron in vercel.json
 - Use external scheduler for more frequent calls
 
-### 16.5 TypeScript build errors in API route
+### 16.7 TypeScript build errors in API route
 Fix:
 - Run npm run check locally
 - Confirm latest code includes booking action type fix

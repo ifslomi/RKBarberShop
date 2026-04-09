@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import {
   LayoutDashboard, Users, Calendar, Settings,
   ArrowLeft, Loader2, Trash2, UserCheck, UserX,
   X, LogOut, Lock, Activity, CheckCircle, Plus,
-  Edit2, Scissors, Clock, Eye, EyeOff, AlertCircle,
+  Edit2, Scissors, Clock, Eye, EyeOff, AlertCircle, Upload, Download, Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -48,6 +48,8 @@ import { useToast } from "@/hooks/use-toast";
 import type { Barber, Service, Booking } from "@/lib/types";
 import { DAYS_OF_WEEK } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { uploadImageFile } from "@/lib/storageUpload";
+import { downloadImageInApp } from "@/lib/fileDownload";
 import LogoImg from "@assets/rkbarber-logo-transparent.png";
 
 // ─────────────────────────────────────────────────────────
@@ -466,7 +468,18 @@ function BookingDetailsDialog({
   onReschedule: (booking: Booking) => void;
   onDelete: (b: Booking) => void;
 }) {
+  const { toast } = useToast();
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   if (!booking) return null;
+
+  const handleDownloadProof = async () => {
+    if (!booking.paymentProofUrl) return;
+    try {
+      await downloadImageInApp(booking.paymentProofUrl, `payment-proof-${booking.id}.png`);
+    } catch {
+      toast({ title: "Failed to download payment proof", variant: "destructive" });
+    }
+  };
 
   const statusConfig: Record<string, { label: string; className: string }> = {
     confirmed: { label: "Confirmed", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
@@ -478,6 +491,7 @@ function BookingDetailsDialog({
   const initials = booking.customerName.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
   return (
+    <>
     <Dialog open={!!booking} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md bg-card border-border/50 shadow-2xl p-0 overflow-hidden">
         <DialogHeader className="sr-only">
@@ -524,6 +538,14 @@ function BookingDetailsDialog({
             {[
               { label: "Service(s)", value: booking.serviceName || "—" },
               {
+                label: "Payment Proof",
+                value: booking.paymentProofUrl
+                  ? "uploaded"
+                  : booking.type === "reservation"
+                    ? "not uploaded"
+                    : "not required",
+              },
+              {
                 label: "Customer Confirmation",
                 value: booking.type === "reservation"
                   ? (booking.customerDecision || "awaiting")
@@ -545,6 +567,32 @@ function BookingDetailsDialog({
                   style={{ wordBreak: "break-all", overflowWrap: "anywhere" }}
                 >
                   {booking.notes}
+                </div>
+              </div>
+            )}
+            {booking.paymentProofUrl && (
+              <div className="px-4 py-2.5 text-sm border-t border-border/20 space-y-2">
+                <span className="text-muted-foreground block">Payment Proof</span>
+                <img
+                  src={booking.paymentProofUrl}
+                  alt="Customer payment proof"
+                  className="w-full max-h-56 object-contain rounded-lg border border-border/30 bg-background"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImageUrl(booking.paymentProofUrl || null)}
+                    className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border/50 hover:bg-accent"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" /> View Proof
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDownloadProof()}
+                    className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border/50 hover:bg-accent"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download
+                  </button>
                 </div>
               </div>
             )}
@@ -579,6 +627,23 @@ function BookingDetailsDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    <Dialog open={!!previewImageUrl} onOpenChange={(open) => { if (!open) setPreviewImageUrl(null); }}>
+      <DialogContent className="sm:max-w-lg bg-card border-border/50">
+        <DialogHeader>
+          <DialogTitle>Payment Proof Preview</DialogTitle>
+          <DialogDescription>Preview uploaded payment proof without leaving the admin panel.</DialogDescription>
+        </DialogHeader>
+        {previewImageUrl && (
+          <img
+            src={previewImageUrl}
+            alt="Payment proof preview"
+            className="w-full max-h-[70vh] object-contain rounded-xl border border-border/40 bg-muted/20"
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
@@ -743,6 +808,10 @@ export default function Admin() {
   const [tiktokUrl, setTiktokUrl] = useState("");
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
   const [gcashNumber, setGcashNumber] = useState("");
+  const [gcashQrCodeUrl, setGcashQrCodeUrl] = useState("");
+  const [gcashQrUploading, setGcashQrUploading] = useState(false);
+  const gcashQrInputRef = useRef<HTMLInputElement | null>(null);
+  const [gcashQrPreviewOpen, setGcashQrPreviewOpen] = useState(false);
   const [reservationPolicyText, setReservationPolicyText] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -774,9 +843,43 @@ export default function Admin() {
       setTiktokUrl(settings.tiktokUrl || "");
       setGoogleMapsUrl(settings.googleMapsUrl || "");
       setGcashNumber(settings.gcashNumber || "");
+      setGcashQrCodeUrl(settings.gcashQrCodeUrl || "");
       setReservationPolicyText(settings.reservationPolicyText || "");
     }
   }, [settings]);
+
+  const handleGcashQrUpload = async (file: File) => {
+    setGcashQrUploading(true);
+    try {
+      const uploaded = await uploadImageFile({
+        file,
+        folder: "gcash",
+        prefix: "shop-qr",
+      });
+      setGcashQrCodeUrl(uploaded);
+      try {
+        await adminUpdateSettings({ gcashQrCodeUrl: uploaded });
+        toast({ title: "GCash QR uploaded and saved ✓" });
+      } catch {
+        toast({ title: "QR uploaded but failed to auto-save. Click Save Settings.", variant: "destructive" });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to upload GCash QR";
+      toast({ title: message, variant: "destructive" });
+    } finally {
+      setGcashQrUploading(false);
+    }
+  };
+
+  const handleDownloadGcashQr = async () => {
+    if (!gcashQrCodeUrl) return;
+    try {
+      await downloadImageInApp(gcashQrCodeUrl, "rkbarbershop-gcash-qr.png");
+      toast({ title: "GCash QR downloaded" });
+    } catch {
+      toast({ title: "Failed to download QR", variant: "destructive" });
+    }
+  };
 
   // Dialog states
   const [editBarber, setEditBarber] = useState<Barber | null | "new">(null);
@@ -997,6 +1100,28 @@ export default function Admin() {
         onReschedule={openRescheduleDialog}
         onDelete={(b) => setDeleteTarget({ type: "booking", id: b.id, name: `${b.customerName}'s booking` })}
       />
+
+      <Dialog open={gcashQrPreviewOpen} onOpenChange={setGcashQrPreviewOpen}>
+        <DialogContent className="sm:max-w-lg bg-card border-border/50">
+          <DialogHeader>
+            <DialogTitle>GCash QR Preview</DialogTitle>
+            <DialogDescription>Preview the shop QR code without leaving the admin panel.</DialogDescription>
+          </DialogHeader>
+          {gcashQrCodeUrl && (
+            <img
+              src={gcashQrCodeUrl}
+              alt="GCash QR preview"
+              className="w-full max-h-[70vh] object-contain rounded-xl border border-border/40 bg-muted/20"
+            />
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setGcashQrPreviewOpen(false)}>Close</Button>
+            <Button type="button" onClick={() => void handleDownloadGcashQr()}>
+              <Download className="w-4 h-4 mr-2" /> Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!rescheduleTarget} onOpenChange={(v) => { if (!v) setRescheduleTarget(null); }}>
         <DialogContent className="sm:max-w-sm bg-card border-border/50">
@@ -1605,14 +1730,14 @@ export default function Admin() {
                         <TableHead>Customer</TableHead><TableHead>Barber</TableHead>
                         <TableHead>Service</TableHead><TableHead>Date</TableHead>
                         <TableHead>Type</TableHead><TableHead>Price</TableHead>
-                        <TableHead>Status</TableHead><TableHead>Actions</TableHead>
+                        <TableHead>Proof</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {allBookingsLoading ? (
-                        <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                        <TableRow><TableCell colSpan={9} className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto text-primary" /></TableCell></TableRow>
                       ) : filteredBookings.length === 0 ? (
-                        <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground text-sm">{allBookings.length === 0 ? "No bookings yet" : "No bookings match the current filters"}</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground text-sm">{allBookings.length === 0 ? "No bookings yet" : "No bookings match the current filters"}</TableCell></TableRow>
                       ) : filteredBookings.map((b) => (
                         <ContextMenu key={b.id}>
                           <ContextMenuTrigger asChild>
@@ -1623,6 +1748,21 @@ export default function Admin() {
                               <TableCell>{b.date}{b.time ? ` ${b.time}` : ""}</TableCell>
                               <TableCell><Badge variant={b.type === "reservation" ? "default" : "secondary"} className="text-xs">{b.type}</Badge></TableCell>
                               <TableCell className="font-semibold">₱{getBookingDisplayPrice(b)}</TableCell>
+                              <TableCell>
+                                {b.paymentProofUrl ? (
+                                  <button
+                                    type="button"
+                                    className="text-[11px] px-2 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20"
+                                    onClick={() => setViewBooking(b)}
+                                  >
+                                    Uploaded
+                                  </button>
+                                ) : (
+                                  <span className="text-[11px] px-2 py-1 rounded-full border border-border/50 text-muted-foreground">
+                                    None
+                                  </span>
+                                )}
+                              </TableCell>
                               <TableCell>
                                 <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", {
                                   "bg-emerald-500/10 text-emerald-500": b.status === "confirmed",
@@ -1842,6 +1982,72 @@ export default function Admin() {
                     />
                     <p className="text-xs text-muted-foreground">Displayed as: "Send ₱[total] via GCash [number]"</p>
                   </div>
+                  <div className="space-y-2">
+                    <Label>GCash QR Code</Label>
+                    <input
+                      ref={gcashQrInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(e) => {
+                        const selected = e.target.files?.[0];
+                        if (selected) void handleGcashQrUpload(selected);
+                      }}
+                      disabled={gcashQrUploading}
+                      className="hidden"
+                    />
+                    <div className="rounded-xl border border-border/50 bg-muted/20 p-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-center border-border/60"
+                        onClick={() => gcashQrInputRef.current?.click()}
+                        disabled={gcashQrUploading}
+                      >
+                        {gcashQrUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                        {gcashQrUploading ? "Uploading..." : "Choose QR Image"}
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-2">PNG, JPG, or WebP. Max 3MB.</p>
+                    </div>
+                    {gcashQrUploading && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading QR image...
+                      </p>
+                    )}
+                    {gcashQrCodeUrl ? (
+                      <div className="rounded-xl border border-border/50 bg-muted/20 p-3 space-y-2">
+                        <img
+                          src={gcashQrCodeUrl}
+                          alt="GCash QR code"
+                          className="w-full max-h-64 object-contain rounded-lg border border-border/30 bg-background"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setGcashQrPreviewOpen(true)}
+                            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border/50 hover:bg-accent"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5" /> View QR
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDownloadGcashQr()}
+                            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border/50 hover:bg-accent"
+                          >
+                            <Download className="w-3.5 h-3.5" /> Download
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGcashQrCodeUrl("")}
+                            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border/50 hover:bg-accent"
+                          >
+                            <Upload className="w-3.5 h-3.5" /> Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Upload a QR screenshot/image so clients can scan or download it in reservation steps.</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1889,6 +2095,7 @@ export default function Admin() {
                         tiktokUrl,
                         googleMapsUrl,
                         gcashNumber,
+                        gcashQrCodeUrl,
                         reservationPolicyText,
                       });
                       toast({ title: "Settings saved ✓" });

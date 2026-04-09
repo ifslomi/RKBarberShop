@@ -7,6 +7,14 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import nodemailer from "nodemailer";
 
+const ALLOWED_UPLOAD_HOSTS = new Set([
+  "i.ibb.co",
+  "ibb.co",
+  "iili.io",
+  "files.catbox.moe",
+  "0x0.st",
+]);
+
 type ApiError = {
   message: string;
 };
@@ -22,6 +30,160 @@ type AdminRequest = Request & {
 };
 
 type CustomerDecision = "awaiting" | "accepted" | "cancelled" | "reschedule_requested" | "expired";
+
+const MAX_UPLOAD_SIZE_BYTES = 3 * 1024 * 1024;
+const uploadImageSchema = z.object({
+  dataUrl: z.string().min(1),
+  folder: z.enum(["gcash", "proofs", "barbers"]).optional(),
+  filename: z.string().optional(),
+});
+
+function sanitizeUploadFilename(fileName: string): string {
+  return fileName
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 120);
+}
+
+function sanitizeDownloadFilename(fileName: string): string {
+  return fileName
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 120) || "download-file";
+}
+
+function parseAndValidateRemoteUrl(urlValue: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(urlValue);
+  } catch {
+    throw new Error("Invalid download URL");
+  }
+
+  if (!/^https?:$/i.test(parsed.protocol)) {
+    throw new Error("Only HTTP(S) download URLs are allowed");
+  }
+
+  if (!ALLOWED_UPLOAD_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new Error("Download host is not allowed");
+  }
+
+  return parsed;
+}
+
+function extensionFromMime(mimeType: string): string {
+  if (mimeType === "image/png") return "png";
+  if (mimeType === "image/webp") return "webp";
+  return "jpg";
+}
+
+function parseImageDataUrl(dataUrl: string): { buffer: Buffer; base64: string; mimeType: "image/png" | "image/jpeg" | "image/webp" } {
+  const m = String(dataUrl).match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\s]+)$/i);
+  if (!m) {
+    throw new Error("Invalid image format. Use PNG, JPG, or WebP");
+  }
+
+  const mimeType = m[1].toLowerCase() as "image/png" | "image/jpeg" | "image/webp";
+  const base64 = m[2].replace(/\s+/g, "");
+  const buffer = Buffer.from(base64, "base64");
+  if (!buffer.length) {
+    throw new Error("Uploaded image is empty");
+  }
+  if (buffer.length > MAX_UPLOAD_SIZE_BYTES) {
+    throw new Error("Image must be 3MB or smaller");
+  }
+
+  return { buffer, base64, mimeType };
+}
+
+async function uploadViaImgBB(base64: string, fileName: string): Promise<string> {
+  const apiKey = String(process.env.IMGBB_API_KEY || "").trim();
+  if (!apiKey) {
+    throw new Error("IMGBB_API_KEY is not configured");
+  }
+
+  const body = new URLSearchParams();
+  body.set("image", base64);
+  body.set("name", sanitizeUploadFilename(fileName).replace(/\.[a-z0-9]+$/i, ""));
+
+  const response = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(apiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+
+  const payload = await response.json().catch(() => null) as
+    | { data?: { url?: string; display_url?: string }; success?: boolean; error?: { message?: string } }
+    | null;
+  const url = String(payload?.data?.url || payload?.data?.display_url || "").trim();
+  if (!response.ok || !payload?.success || !/^https?:\/\//i.test(url)) {
+    throw new Error(payload?.error?.message || "imgbb upload failed");
+  }
+
+  return url;
+}
+
+async function uploadVia0x0(buffer: Buffer, mimeType: string, fileName: string): Promise<string> {
+  const form = new FormData();
+  form.append("file", new Blob([buffer], { type: mimeType }), fileName);
+
+  const response = await fetch("https://0x0.st", { method: "POST", body: form });
+  const text = (await response.text()).trim();
+  if (!response.ok || !/^https?:\/\//i.test(text)) {
+    throw new Error(text || "0x0.st upload failed");
+  }
+
+  return text;
+}
+
+async function uploadViaCatbox(buffer: Buffer, mimeType: string, fileName: string): Promise<string> {
+  const form = new FormData();
+  form.append("reqtype", "fileupload");
+  form.append("fileToUpload", new Blob([buffer], { type: mimeType }), fileName);
+
+  const response = await fetch("https://catbox.moe/user/api.php", { method: "POST", body: form });
+  const text = (await response.text()).trim();
+  if (!response.ok || !/^https?:\/\//i.test(text)) {
+    throw new Error(text || "catbox upload failed");
+  }
+
+  return text;
+}
+
+async function uploadToFreeHost(params: {
+  dataUrl: string;
+  folder?: "gcash" | "proofs" | "barbers";
+  filename?: string;
+}): Promise<string> {
+  const { buffer, base64, mimeType } = parseImageDataUrl(params.dataUrl);
+  const ext = extensionFromMime(mimeType);
+  const baseName = sanitizeUploadFilename(params.filename || `image-${Date.now()}.${ext}`);
+  const fileName = `${params.folder || "proofs"}-${Date.now()}-${baseName}`;
+
+  const errors: string[] = [];
+
+  try {
+    return await uploadViaImgBB(base64, fileName);
+  } catch (error) {
+    errors.push(`imgbb: ${error instanceof Error ? error.message : "failed"}`);
+  }
+
+  try {
+    return await uploadViaCatbox(buffer, mimeType, fileName);
+  } catch (error) {
+    errors.push(`catbox: ${error instanceof Error ? error.message : "failed"}`);
+  }
+
+  try {
+    return await uploadVia0x0(buffer, mimeType, fileName);
+  } catch (error) {
+    errors.push(`0x0.st: ${error instanceof Error ? error.message : "failed"}`);
+  }
+
+  throw new Error(`All upload providers failed (${errors.join(" | ")})`);
+}
 
 function isValidPHPhone(phone: string): boolean {
   const cleaned = phone.replace(/[\s\-()]/g, "");
@@ -236,6 +398,7 @@ const settingsPatchSchema = z
     tagline: z.string().optional(),
     aboutText: z.string().optional(),
     gcashNumber: z.string().optional(),
+    gcashQrCodeUrl: z.string().optional(),
     reservationPolicyText: z.string().optional(),
   })
   .refine((payload) => Object.keys(payload).length > 0, {
@@ -367,6 +530,48 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/uploads/image", async (req, res, next) => {
+    try {
+      const parsed = uploadImageSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid upload payload", issues: parsed.error.issues });
+      }
+
+      const url = await uploadToFreeHost(parsed.data);
+      return res.status(200).json({ url });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Image upload failed";
+      return res.status(502).json({ message });
+    }
+  });
+
+  app.get("/api/uploads/download", async (req, res) => {
+    try {
+      const rawUrl = String(req.query.url || "").trim();
+      const fileName = sanitizeDownloadFilename(String(req.query.filename || "download-file"));
+      if (!rawUrl) {
+        return res.status(400).send("Missing 'url' query parameter");
+      }
+
+      const parsedUrl = parseAndValidateRemoteUrl(rawUrl);
+      const upstream = await fetch(parsedUrl.toString());
+      if (!upstream.ok) {
+        return res.status(502).send("Failed to fetch remote file");
+      }
+
+      const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+      const data = Buffer.from(await upstream.arrayBuffer());
+
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+      res.setHeader("Cache-Control", "private, max-age=300");
+      return res.status(200).send(data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Download failed";
+      return res.status(400).send(message);
+    }
+  });
+
   app.post("/api/bookings", async (req, res, next) => {
     try {
       const payload = req.body || {};
@@ -399,6 +604,11 @@ export async function registerRoutes(
       const barber = barberDoc.data() as Record<string, unknown>;
       const barberName = String(barber.name || payload.barberName || "").trim();
       const price = type === "reservation" ? Number(barber.reservePrice || 0) : Number(barber.walkinPrice || 0);
+      const paymentProofUrl = String(payload.paymentProofUrl || "").trim();
+
+      if (type === "reservation" && price > 0 && !paymentProofUrl) {
+        return sendBadRequest(res, "Reservation requires payment proof upload");
+      }
 
       const token = createActionToken();
       const tokenHash = hashActionToken(token);
@@ -415,6 +625,7 @@ export async function registerRoutes(
         phone,
         email,
         notes: String(payload.notes || ""),
+        paymentProofUrl,
         date,
         time: type === "reservation" ? time : "",
         type,

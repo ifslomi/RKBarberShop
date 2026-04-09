@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -17,9 +17,11 @@ import { useBarbers, useServices, useQueue, useSettings } from "@/hooks/useFires
 import { format } from "date-fns";
 import {
   CalendarIcon, Clock, Scissors, Loader2,
-  CheckCircle2, ChevronRight, Users, AlertCircle,
+  CheckCircle2, ChevronRight, Users, AlertCircle, Upload, Download, Image as ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { uploadImageFile } from "@/lib/storageUpload";
+import { downloadImageInApp } from "@/lib/fileDownload";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 function generateTimeslots(from: string, to: string): string[] {
@@ -100,6 +102,12 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [paymentProofUrl, setPaymentProofUrl] = useState("");
+  const [paymentProofUploading, setPaymentProofUploading] = useState(false);
+  const [paymentProofError, setPaymentProofError] = useState("");
+  const paymentProofInputRef = useRef<HTMLInputElement | null>(null);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [previewImageTitle, setPreviewImageTitle] = useState("Image Preview");
   const [phoneError, setPhoneError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -110,6 +118,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
   const { toast } = useToast();
 
   const gcashNumber = settings?.gcashNumber || "09263746324";
+  const gcashQrCodeUrl = settings?.gcashQrCodeUrl || "";
 
   const activeBarbers = barbers.filter((b) => b.active);
   const activeServices = services.filter((s) => s.active);
@@ -131,6 +140,11 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
     setName("");
     setPhone("");
     setEmail("");
+    setPaymentProofUrl("");
+    setPaymentProofUploading(false);
+    setPaymentProofError("");
+    setPreviewImageUrl(null);
+    setPreviewImageTitle("Image Preview");
     setPhoneError("");
   };
 
@@ -155,6 +169,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
         if (!name.trim()) return false;
         if (!isValidPHPhone(phone)) return false;
         if (type === "reservation" && !email.includes("@")) return false;
+        if (type === "reservation" && hasPayablePrice && !paymentProofUrl) return false;
         return true;
       }
       default: return true;
@@ -181,6 +196,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
         phone,
         email,
         notes,
+        paymentProofUrl: paymentProofUrl || "",
         date: bookingDate,
         time: type === "reservation" && time ? time : "",
         type,
@@ -262,7 +278,42 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
     });
   };
 
+  const handlePaymentProofUpload = async (file: File) => {
+    setPaymentProofError("");
+    setPaymentProofUploading(true);
+    try {
+      const imageUrl = await uploadImageFile({
+        file,
+        folder: "proofs",
+        prefix: `booking-${Date.now()}`,
+      });
+      setPaymentProofUrl(imageUrl);
+      toast({ title: "Payment proof uploaded" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to upload payment proof";
+      setPaymentProofError(message);
+      toast({ title: message, variant: "destructive" });
+    } finally {
+      setPaymentProofUploading(false);
+    }
+  };
+
+  const openPreviewImage = (url: string, title: string) => {
+    setPreviewImageTitle(title);
+    setPreviewImageUrl(url);
+  };
+
+  const handleDownloadInApp = async (url: string, filename: string) => {
+    try {
+      await downloadImageInApp(url, filename);
+      toast({ title: "Download started" });
+    } catch {
+      toast({ title: "Failed to download file", variant: "destructive" });
+    }
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[480px] bg-card border-border/50 shadow-2xl max-h-[92vh] flex flex-col overflow-hidden p-0">
         {/* Header */}
@@ -571,9 +622,6 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                                     To secure your slot, a <span className="font-semibold text-foreground">₱{totalPrice}</span> down payment is required as a reservation fee.
                                   </p>
                                   <p className="text-red-400 font-semibold mt-1">NON-REFUNDABLE</p>
-                                  <div className="mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                                    <p className="text-xs text-amber-600 font-medium">GCash: {gcashNumber}</p>
-                                  </div>
                                 </>
                               </div>
                             )}
@@ -590,16 +638,51 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                             </div>
                           </>
                         )}
-                        {/* Show the GCash payment block only when selected services have a payable amount */}
+                        {/* Keep policy box text-only; payment details are shown in separate card below */}
                         {settings?.reservationPolicyText && hasPayablePrice && (
                           <div className="border-t border-border/30 pt-2.5">
                             <p className="font-semibold text-amber-500 mb-1">Down Payment: ₱{totalPrice}</p>
-                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                              <p className="text-xs text-amber-600 font-medium">GCash: {gcashNumber}</p>
-                            </div>
                           </div>
                         )}
                       </div>
+                      {hasPayablePrice && (
+                        <div className="rounded-2xl border border-primary/25 bg-primary/5 p-3 space-y-2">
+                          <p className="text-xs font-semibold text-primary">Official GCash QR</p>
+                          <div className="bg-background/70 border border-border/40 rounded-lg px-3 py-2">
+                            <p className="text-xs text-muted-foreground">GCash Number</p>
+                            <p className="text-sm font-semibold text-foreground">{gcashNumber}</p>
+                          </div>
+                          {gcashQrCodeUrl ? (
+                            <>
+                              <img
+                                src={gcashQrCodeUrl}
+                                alt="RK Barbershop official GCash QR"
+                                className="w-full max-h-52 object-contain rounded-md border border-border/40 bg-background"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openPreviewImage(gcashQrCodeUrl, "GCash QR Preview")}
+                                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border/50 hover:bg-accent"
+                                >
+                                  <ImageIcon className="w-3.5 h-3.5" /> View QR
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDownloadInApp(gcashQrCodeUrl, "rkbarbershop-gcash-qr.png")}
+                                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border/50 hover:bg-accent"
+                                >
+                                  <Download className="w-3.5 h-3.5" /> Download QR
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <p className="text-xs text-amber-600">
+                              QR is not uploaded yet. Please contact shop admin before paying.
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <label className="flex items-start gap-3 cursor-pointer">
                         <input
                           type="checkbox"
@@ -688,6 +771,86 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                       />
                     </div>
                   )}
+                  {type === "reservation" && hasPayablePrice && (
+                    <div className="space-y-2">
+                      <Label htmlFor="modal-proof">Upload GCash Payment Proof *</Label>
+                      <div className="rounded-xl border border-border/50 bg-muted/20 p-3 space-y-3">
+                        <input
+                          ref={paymentProofInputRef}
+                          id="modal-proof"
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          onChange={(e) => {
+                            const selected = e.target.files?.[0];
+                            if (selected) void handlePaymentProofUpload(selected);
+                          }}
+                          disabled={paymentProofUploading}
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-center border-border/60"
+                          onClick={() => paymentProofInputRef.current?.click()}
+                          disabled={paymentProofUploading}
+                        >
+                          {paymentProofUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                          {paymentProofUploading ? "Uploading..." : "Choose Payment Proof"}
+                        </Button>
+                        <p className="text-xs text-muted-foreground">PNG, JPG, or WebP. Max 3MB.</p>
+                        {paymentProofUploading && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading image...
+                          </p>
+                        )}
+                        {paymentProofError && (
+                          <p className="text-xs text-red-500 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {paymentProofError}
+                          </p>
+                        )}
+                        {paymentProofUrl && (
+                          <div className="space-y-2">
+                            <img
+                              src={paymentProofUrl}
+                              alt="Uploaded payment proof"
+                              className="w-full max-h-56 object-contain rounded-lg border border-border/40 bg-background"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openPreviewImage(paymentProofUrl, "Payment Proof Preview")}
+                                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border/50 hover:bg-accent"
+                              >
+                                <ImageIcon className="w-3.5 h-3.5" /> View
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDownloadInApp(paymentProofUrl, "payment-proof.png")}
+                                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border/50 hover:bg-accent"
+                              >
+                                <Download className="w-3.5 h-3.5" /> Download
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPaymentProofUrl("");
+                                  setPaymentProofError("");
+                                }}
+                                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border/50 hover:bg-accent"
+                              >
+                                <Upload className="w-3.5 h-3.5" /> Replace
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {!paymentProofUrl && !paymentProofUploading && (
+                          <p className="text-xs text-amber-600">
+                            Reservation confirmation requires an uploaded proof of GCash payment.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -704,6 +867,7 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                       { label: "Customer", value: name },
                       { label: "Phone", value: phone },
                       ...(email ? [{ label: "Email", value: email }] : []),
+                      ...(paymentProofUrl ? [{ label: "Payment Proof", value: "Uploaded" }] : []),
                       ...(type === "reservation" && date && time
                         ? [{ label: "Schedule", value: `${format(date, "MMM d, yyyy")} at ${time}` }]
                         : []),
@@ -734,9 +898,36 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
                   {type === "reservation" && hasPayablePrice && (
                     <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2 text-sm">
                       <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                      <p className="text-amber-600">
-                        Send <strong>₱{totalPrice}</strong> via GCash <strong>{gcashNumber}</strong> to confirm your reservation.
-                      </p>
+                      <div className="text-amber-600 space-y-2">
+                        <p>
+                          Send <strong>₱{totalPrice}</strong> via GCash <strong>{gcashNumber}</strong> and upload the proof above.
+                        </p>
+                        {gcashQrCodeUrl && (
+                          <div className="space-y-2">
+                            <img
+                              src={gcashQrCodeUrl}
+                              alt="RK Barbershop GCash QR"
+                              className="w-full max-h-52 object-contain rounded-md border border-amber-500/20 bg-background"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openPreviewImage(gcashQrCodeUrl, "GCash QR Preview")}
+                                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-amber-500/30 hover:bg-amber-500/10"
+                              >
+                                <ImageIcon className="w-3.5 h-3.5" /> View QR
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDownloadInApp(gcashQrCodeUrl, "rkbarbershop-gcash-qr.png")}
+                                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-amber-500/30 hover:bg-amber-500/10"
+                              >
+                                <Download className="w-3.5 h-3.5" /> Download QR
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -782,5 +973,21 @@ export function BookingModal({ open, onOpenChange, initialBarber }: BookingModal
         </div>
       </DialogContent>
     </Dialog>
+
+    <Dialog open={!!previewImageUrl} onOpenChange={(open) => { if (!open) setPreviewImageUrl(null); }}>
+      <DialogContent className="sm:max-w-lg bg-card border-border/50">
+        <DialogHeader>
+          <DialogTitle>{previewImageTitle}</DialogTitle>
+        </DialogHeader>
+        {previewImageUrl && (
+          <img
+            src={previewImageUrl}
+            alt={previewImageTitle}
+            className="w-full max-h-[70vh] object-contain rounded-xl border border-border/40 bg-muted/20"
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
