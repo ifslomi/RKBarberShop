@@ -1,5 +1,5 @@
-import { getFirebaseAdminServices } from "../_firebaseAdmin.js";
-import { isInsideActionWindow } from "../_bookingUtils.js";
+import { getFirebaseAdminServices } from "../../server/vercel/firebaseAdmin.js";
+import { isInsideActionWindow } from "../../server/vercel/bookingUtils.js";
 
 function canRunCron(req: any): boolean {
   const ua = String(req.headers?.["user-agent"] || "").toLowerCase();

@@ -1,4 +1,4 @@
-import { getFirebaseAdminServices } from "../_firebaseAdmin.js";
+import { getFirebaseAdminServices } from "../../server/vercel/firebaseAdmin.js";
 import {
   buildActionEmailHtml,
   createActionToken,
@@ -6,7 +6,7 @@ import {
   getBaseUrl,
   hashActionToken,
   sendBookingActionEmail,
-} from "../_bookingUtils.js";
+} from "../../server/vercel/bookingUtils.js";
 
 type BookingType = "reservation" | "walkin";
 

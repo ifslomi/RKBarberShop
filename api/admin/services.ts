@@ -1,4 +1,4 @@
-import { getFirebaseAdminServices } from "../_firebaseAdmin.js";
+import { getFirebaseAdminServices } from "../../server/vercel/firebaseAdmin.js";
 
 type Claims = {
   admin?: boolean;

@@ -306,6 +306,10 @@ Suggested values:
 3. Add all environment variables in Vercel Project Settings
 4. Deploy
 
+Function limit note:
+- Vercel Hobby allows up to 12 Serverless Functions per deployment
+- This repo is structured to stay within that limit by keeping shared helpers outside the `api` folder and combining upload routes into one function
+
 Cron note:
 - Vercel Hobby only supports daily cron
 - Current schedule in vercel.json is daily
@@ -416,6 +420,14 @@ Fix:
 Fix:
 - Run npm run check locally
 - Confirm latest code includes booking action type fix
+
+### 16.8 Vercel deployment failed: more than 12 Serverless Functions
+Cause:
+- Too many files inside the `api` folder (each file is treated as a function)
+Fix:
+- Keep helper modules outside `api`
+- Consolidate related endpoints into shared dynamic routes when possible
+- Re-deploy after verifying `find api -type f | wc -l` is 12 or lower on Hobby
 
 ---
 
