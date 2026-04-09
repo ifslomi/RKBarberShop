@@ -47,9 +47,9 @@ export default function Home() {
 
       {/* Services popup */}
       <Dialog open={servicesOpen} onOpenChange={setServicesOpen}>
-        <DialogContent className="sm:max-w-lg bg-card border-border/50 p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-lg max-h-[85dvh] bg-card border-border/50 p-0 overflow-hidden flex flex-col">
           <div className="h-1 w-full bg-gradient-to-r from-primary via-primary/60 to-transparent" />
-          <div className="px-6 pt-5 pb-6">
+          <div className="px-6 pt-5 pb-6 flex flex-col min-h-0">
             <DialogHeader className="mb-4">
               <DialogTitle className="text-xl font-bold font-heading">Our Services</DialogTitle>
             </DialogHeader>
@@ -59,7 +59,7 @@ export default function Home() {
                 <p className="text-sm">No services listed yet.</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+              <div className="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1">
                 {activeServices.map((service) => (
                   <div key={service.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-muted/30 border border-border/30 hover:border-primary/30 transition-colors">
                     <div className="flex items-center gap-3 min-w-0">
@@ -67,8 +67,8 @@ export default function Home() {
                         <Scissors className="w-4 h-4 text-primary" />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">{service.name}</p>
-                        {service.description && <p className="text-xs text-muted-foreground truncate">{service.description}</p>}
+                        <p className="font-semibold text-sm break-words">{service.name}</p>
+                        {service.description && <p className="text-xs text-muted-foreground leading-relaxed break-words">{service.description}</p>}
                       </div>
                     </div>
                     {!service.noPrice && service.price > 0 && <span className="font-bold text-primary shrink-0">₱{service.price}</span>}
